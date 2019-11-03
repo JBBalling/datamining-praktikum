@@ -33,7 +33,7 @@ public class DimensionalityReduction {
                 .setWithStd(true)
                 .setWithMean(true);
 
-        // ...
+        // TODO standardize
 
         RowMatrix data = new RowMatrix(parsedData.rdd());
 
