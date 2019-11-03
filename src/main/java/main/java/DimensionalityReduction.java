@@ -18,7 +18,9 @@ public class DimensionalityReduction {
     public static void main(String[] args) throws Exception {
         SparkConf conf = new SparkConf();
         JavaSparkContext jsc = new JavaSparkContext(conf);
-        JavaRDD<String> lines = jsc.textFile(args[0]);
+
+        String path = "/Users/jakobschwerter/Documents/Uni/Moderne Datenbanktechnologien/Praktikum - Data Mining/dataminingpraktikum-master/daten/USArrests.csv";
+        JavaRDD<String> lines = jsc.textFile(path);
 
         JavaRDD<Vector> parsedData = lines.map(s -> {
             String[] array = s.split(",");
