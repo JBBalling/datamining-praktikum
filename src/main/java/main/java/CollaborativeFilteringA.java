@@ -1,19 +1,12 @@
 package main.java;
 
 import org.apache.spark.SparkConf;
-import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.mllib.classification.SVMModel;
-import org.apache.spark.mllib.classification.SVMWithSGD;
-import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics;
-import org.apache.spark.mllib.evaluation.RegressionMetrics;
 import org.apache.spark.mllib.recommendation.ALS;
 import org.apache.spark.mllib.recommendation.MatrixFactorizationModel;
 import org.apache.spark.mllib.recommendation.Rating;
-import org.apache.spark.mllib.regression.LabeledPoint;
-import org.apache.spark.mllib.util.MLUtils;
 import scala.Tuple2;
 
 public class CollaborativeFilteringA {
