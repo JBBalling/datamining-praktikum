@@ -4,12 +4,13 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.mllib.evaluation.RegressionMetrics;
 import org.apache.spark.mllib.recommendation.ALS;
 import org.apache.spark.mllib.recommendation.MatrixFactorizationModel;
 import org.apache.spark.mllib.recommendation.Rating;
 import scala.Tuple2;
 
-public class CollaborativeFilteringA {
+public class LatentVariableModel {
 
     public static void main(String[] args) {
 
@@ -18,6 +19,7 @@ public class CollaborativeFilteringA {
     }
 
     static Double als(int rank, double lambda, int iterations) {
+
         SparkConf conf = new SparkConf();
         JavaSparkContext jsc = new JavaSparkContext(conf);
 
@@ -32,38 +34,41 @@ public class CollaborativeFilteringA {
                     Double.parseDouble(sarray[2]));
         });
 
-        JavaRDD<Rating> training = ratings.sample(false, 0.8, 11L);
+        JavaRDD<Rating> training = ratings.sample(false, 0.8);
         training.cache();
         JavaRDD<Rating> test = ratings.subtract(training);
+        test.cache();
 
         MatrixFactorizationModel model = ALS.train(JavaRDD.toRDD(training), rank, iterations, lambda);
 
-        JavaRDD<Tuple2<Object, Object>> userProducts = test.map(r -> new Tuple2<>(r.user(), r.product()));
+        // Evaluate the model on test data: create relation U - P
+        JavaRDD<Tuple2<Object, Object>> userProducts =
+                test.map(r -> new Tuple2<>(r.user(), r.product()));
 
+        // predict on relation U - P
         JavaPairRDD<Tuple2<Integer, Integer>, Double> predictions = JavaPairRDD.fromJavaRDD(
                 model.predict(JavaRDD.toRDD(userProducts)).toJavaRDD()
                         .map(r -> new Tuple2<>(new Tuple2<>(r.user(), r.product()), r.rating()))
         );
 
         JavaRDD<Tuple2<Double, Double>> ratesAndPreds = JavaPairRDD.fromJavaRDD(
-                test.map(r -> new Tuple2<>(new Tuple2<>(r.user(), r.product()), r.rating()))).join(predictions).values();
+                test.map(r -> new Tuple2<>(new Tuple2<>(r.user(), r.product()), r.rating())))
+                .join(predictions).values();
 
-        double MSE = ratesAndPreds.mapToDouble(pair -> {
-            double err = pair._1() - pair._2();
-            return err * err;
-        }).mean();
+        JavaPairRDD<Object, Object> ratesAndPreds2 = ratesAndPreds.mapToPair(val ->
+                new Tuple2<>(val._1, val._2)
+        );
 
-        double RMSE = Math.sqrt(MSE);
+        RegressionMetrics metrics = new RegressionMetrics(ratesAndPreds2.rdd());
 
-        System.out.println("Root Mean Squared Error = " + RMSE);
+        double rmse = metrics.rootMeanSquaredError();
 
-        // Save and load model
-        // model.save(jsc.sc(), "target/tmp/myCollaborativeFilter");
-        // MatrixFactorizationModel sameModel = MatrixFactorizationModel.load(jsc.sc(),"target/tmp/myCollaborativeFilter");
+        System.out.println("RMSE = " + rmse);
 
         jsc.close();
 
-        return RMSE;
+        return rmse;
+
     }
 
 }
