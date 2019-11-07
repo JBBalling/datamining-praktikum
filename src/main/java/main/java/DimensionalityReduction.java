@@ -3,15 +3,16 @@ package main.java;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.ml.feature.StandardScaler;
-import org.apache.spark.ml.feature.StandardScalerModel;
+import org.apache.spark.mllib.feature.StandardScaler;
+import org.apache.spark.mllib.feature.StandardScalerModel;
 import org.apache.spark.mllib.linalg.Matrix;
 import org.apache.spark.mllib.linalg.SingularValueDecomposition;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.mllib.linalg.distributed.RowMatrix;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
+import org.apache.spark.rdd.RDD;
+
+import java.util.List;
 
 public class DimensionalityReduction {
 
@@ -31,13 +32,15 @@ public class DimensionalityReduction {
             return Vectors.dense(values);
         });
 
-        StandardScaler scaler = new StandardScaler()
-                .setWithStd(true)
-                .setWithMean(true);
+        // standardize
+        RDD<Vector> parsedDataAsRDD = parsedData.rdd();
+        StandardScalerModel scalerModel = new StandardScaler(true, true).fit(parsedDataAsRDD);
+        RDD<Vector> parsedDataAsRDD_scaled = scalerModel.transform(parsedDataAsRDD);
+        JavaRDD<Vector> parsedData_scaled = parsedDataAsRDD_scaled.toJavaRDD();
+        List<Vector> data_scaled = parsedData_scaled.collect();
+        JavaRDD<Vector> rows_scaled = jsc.parallelize(data_scaled);
 
-        // TODO standardize
-
-        RowMatrix data = new RowMatrix(parsedData.rdd());
+        RowMatrix data = new RowMatrix(rows_scaled.rdd());
 
 
         svd(data, 2);
