@@ -24,6 +24,9 @@ import java.util.List;
 
 /**
  * bin/spark-submit --class main.java.CollaborativeFiltering /Users/jakobschwerter/Development/data-mining-praktikum/target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ *
+ * Nutzer: 943
+ * Filme: 1682
  */
 public class CollaborativeFiltering {
 
@@ -54,6 +57,8 @@ public class CollaborativeFiltering {
 
         System.out.println("[k=25] RMSE: " + cf.collaborativeFiltering(cf.path, 25));
 
+        System.out.println("[k=30] RMSE: " + cf.collaborativeFiltering(cf.path, 30));
+
         cf.jsc.stop();
 
     }
@@ -67,8 +72,8 @@ public class CollaborativeFiltering {
         JavaRDD<Rating> ratings = lines.map(s -> {
             String[] sarray = s.split("\\s+");
             return new Rating(
-                    Integer.parseInt(sarray[0]), // user (1...)
-                    Integer.parseInt(sarray[1]), // movie (1...)
+                    Integer.parseInt(sarray[0]) - 1, // user (0...) -> ab 0
+                    Integer.parseInt(sarray[1]) - 1, // movie (0...) -> ab 0
                     Double.parseDouble(sarray[2]) // rating (1-5)
             );
         });
@@ -79,27 +84,20 @@ public class CollaborativeFiltering {
         test.cache();
 
 
-
-
-
         // standardisieren?
 
 
-
-
-
-        CoordinateMatrix ratingCoordinateMatrixTraining = new CoordinateMatrix(training.map(r ->
+        CoordinateMatrix ratingCoordinateMatrixTraining = new CoordinateMatrix(training.map(r -> // training
                 (new MatrixEntry(r.user(), r.product(), r.rating()))).rdd()
         );
 
-        CoordinateMatrix ratingCoordinateMatrixTest = new CoordinateMatrix(test.map(r ->
+        CoordinateMatrix ratingCoordinateMatrixTest = new CoordinateMatrix(test.map(r -> // test
                 (new MatrixEntry(r.user(), r.product(), r.rating()))).rdd()
         );
 
         CoordinateMatrix cosSimMatrix = ratingCoordinateMatrixTraining.toIndexedRowMatrix().columnSimilarities();
 
-        Broadcast<double[][]> broadcastColSim = jsc.broadcast(getCosSimMatrixAsDouble(cosSimMatrix));
-        // broadcastColSim.value();
+        Broadcast<double[][]> broadcastColSim = jsc.broadcast(getCosSimMatrixAsDouble(cosSimMatrix)); // broadcastColSim.value() zum abrufen
 
         /*
         for (double[] xyz : broadcastColSim.value()) {
@@ -111,49 +109,30 @@ public class CollaborativeFiltering {
         System.out.println();
         */
 
-
-        // JavaRDD<IndexedRow> ratingMatrixEntries = ratingCoordinateMatrixTraining.toIndexedRowMatrix().rows().toJavaRDD();
-        /*
-        for (IndexedRow ir : ratingMatrixEntries.collect()) {
-             System.out.println(ir);
-        }
-        */
-
-
-
-        JavaPairRDD<Tuple2<Long, Integer>, ArrayList<Tuple2<Tuple2<Integer, Double>, Double>>> userRatingsWithSimilarities = ratingCoordinateMatrixTest.toIndexedRowMatrix().rows().toJavaRDD().flatMapToPair(r -> {
+        JavaPairRDD<Tuple2<Long, Integer>, ArrayList<Tuple2<Tuple2<Integer, Double>, Double>>> userRatingsWithSimilarities = ratingCoordinateMatrixTraining.toIndexedRowMatrix().rows().toJavaRDD().flatMapToPair(r -> {
 
             ArrayList<Tuple2<Tuple2<Long, Integer>, ArrayList<Tuple2<Tuple2<Integer, Double>, Double>>>> list = new ArrayList<>();
 
-            int amountOfMovies = r.vector().size();
+            double[] userRatingsArray = r.vector().toArray();
 
-            // for (int i = 0; i < r.vector().size(); i++) { // rating ist nicht immer vorhanden
-            for (int movieID : r.vector().toSparse().indices()) {
+            for (int i = 0; i < broadcastColSim.value().length; i++) {
+            // for (int movieID : r.vector().toSparse().indices()) {
 
-                // int movieID = i;
+                int movieID = i;
 
+                if (movieID >= broadcastColSim.value().length) {
+                    continue;
+                }
 
-                /**
-                 *
-                 * einige Einträge haben überall 0 als Ähnlichkeit
-                 *
-                 */
+                double[] ratingSimilarities = broadcastColSim.value()[movieID]; // für Film movieID
 
-
-
-                Vector ratingSimilarities = Vectors.dense(broadcastColSim.value()[movieID]);
-
-                /*
-                System.out.println(movieID);
-                System.out.println(ratingSimilarities.toDense());
-                System.out.println();
-                */
+                int amountOfMovies = ratingSimilarities.length;
 
                 ArrayList<Tuple2<Tuple2<Integer, Double>, Double>> movieRatingsWithSimilarities = new ArrayList<>();
 
                 for (int j = 0; j < amountOfMovies; j++) {
 
-                    if (r.vector().apply(j) != 0 && j != movieID) { //  && ratingSimilarities.apply(j) != 0
+                    if (j < userRatingsArray.length && userRatingsArray[j] != 0 && j != movieID) {
 
                         if (movieRatingsWithSimilarities.size() == k.value()) {
                             double smallest = Double.MAX_VALUE;
@@ -165,7 +144,7 @@ public class CollaborativeFiltering {
                                 }
                             }
 
-                            if (smallest > ratingSimilarities.apply(j)) {
+                            if (smallest > ratingSimilarities[j]) {
                                 continue;
                             }
 
@@ -179,7 +158,7 @@ public class CollaborativeFiltering {
                                         j,
                                         r.vector().apply(j)
                                 ),
-                                ratingSimilarities.apply(j)
+                                ratingSimilarities[j]
                         ));
 
                     }
@@ -191,26 +170,11 @@ public class CollaborativeFiltering {
                         movieRatingsWithSimilarities
                 ));
 
-                /*
-                Vector ratingSimilarities = Vectors.dense(broadcastColSim.value()[movieID]);
-
-                list.add(new Tuple2<>(
-                        new Tuple2<>(r.index(), movieID),
-                        new Tuple2<>(r.vector(), ratingSimilarities)
-                ));
-                */
-
             }
 
             return list.iterator();
 
         });
-
-        userRatingsWithSimilarities.foreach(e -> {
-            // System.out.println(e);
-        });
-
-
 
         JavaPairRDD<Tuple2<Tuple2<Long, Integer>, ArrayList<Tuple2<Tuple2<Integer, Double>, Double>>>, Double> userRatingsWithPredictions = userRatingsWithSimilarities.mapToPair(p -> {
 
@@ -233,48 +197,15 @@ public class CollaborativeFiltering {
 
         });
 
-        userRatingsWithPredictions.foreach(e -> {
-            // System.out.println(e);
-        });
-
-        /*
-        JavaPairRDD<Object, Object> newRatings = ratingCoordinateMatrixTraining.toIndexedRowMatrix().rows().toJavaRDD().mapToPair(r -> {
-
-            Vector v = r.vector().copy();
-
-            double[] newRatingsArray = r.vector().toArray();
-
-            for (int movieID : r.vector().toSparse().indices()) {
-
-                double prediction = 0.0;
-
-
-
-                newRatingsArray[movieID] = prediction;
-
-            }
-
-            IndexedRow newRatingRow = new IndexedRow(r.index(), Vectors.dense(newRatingsArray).toSparse());
-
-            return new Tuple2<>(r, newRatingRow);
-        });
-        */
-
-        /*
-        newRatings.foreach(e -> {
-            System.out.println(e);
-        });
-        */
-
-        // JavaPairRDD<Object, Object> ratingsAndPredictions = null;
-
         JavaPairRDD<Tuple2<Long, Integer>, Double> userRatings = test.mapToPair(r ->
             new Tuple2<Tuple2<Long, Integer>, Double>(new Tuple2<Long, Integer>((long)r.user(), r.product()), r.rating())
         );
 
         JavaPairRDD<Tuple2<Long, Integer>, Double> userPredictions = userRatingsWithPredictions.mapToPair(val ->
                 new Tuple2<Tuple2<Long, Integer>, Double>(val._1()._1(), val._2())
-        );
+        ).filter(x -> {
+            return (x._2() != 0);
+        });
 
         JavaPairRDD<Object, Object> ratesAndPreds = userRatings.join(userPredictions).values().mapToPair(val ->
                 new Tuple2<>(val._1(), val._2())

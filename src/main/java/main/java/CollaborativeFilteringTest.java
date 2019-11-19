@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -15,19 +16,77 @@ import org.apache.spark.mllib.linalg.distributed.CoordinateMatrix;
 import org.apache.spark.mllib.linalg.distributed.MatrixEntry;
 import org.apache.spark.mllib.linalg.distributed.RowMatrix;
 import org.apache.spark.mllib.recommendation.Rating;
+import scala.Tuple2;
 
 
+/**
+ *
+ * bin/spark-submit --class main.java.CollaborativeFilteringTest /Users/jakobschwerter/Development/data-mining-praktikum/target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ *
+ */
 public class CollaborativeFilteringTest {
 
     public static void main(String[] args) {
 
         CollaborativeFilteringTest cb = new CollaborativeFilteringTest();
 
-        cb.collaborativeFiltering(2);
+        // cb.collaborativeFiltering(2);
+
+
+        cb.amount();
+
 
     }
 
     public CollaborativeFilteringTest() {
+
+    }
+
+    void amount() {
+
+        SparkConf conf = new SparkConf();
+        JavaSparkContext jsc = new JavaSparkContext(conf);
+
+        String path = "/Users/jakobschwerter/Documents/Uni/Moderne Datenbanktechnologien/Praktikum - Data Mining/dataminingpraktikum-master/daten/ratings.txt";
+
+        JavaRDD<String> lines = jsc.textFile(path);
+
+        JavaRDD<Rating> ratings = lines.map(s -> {
+            String[] sarray = s.split("\\s+");
+            return new Rating(
+                    Integer.parseInt(sarray[0]), // user
+                    Integer.parseInt(sarray[1]), // movie
+                    Double.parseDouble(sarray[2]) // rating
+            );
+        });
+
+        JavaRDD<Integer> users = ratings.map(r -> r.user());
+
+        System.out.println("Users: " + users.distinct().collect().size());
+
+        JavaRDD<Integer> movies = ratings.map(r -> r.product());
+
+        System.out.println("Movies: " + movies.distinct().collect().size());
+
+
+        /*
+        JavaPairRDD<Integer, Integer> movieratings = ratings.mapToPair(r -> {
+            return new Tuple2<Integer, Integer>(r.product(), 1);
+        });
+
+        JavaPairRDD<Integer, Integer> movieratings2 = movieratings.reduceByKey((n1, n2) -> n1 + n2);
+
+        movieratings2.sortByKey().collect().forEach(r -> System.out.println(r));
+        */
+
+        JavaPairRDD<Integer, Integer> movieratings = ratings.mapToPair(r -> {
+            return new Tuple2<Integer, Integer>(r.user(), 1);
+        });
+
+        JavaPairRDD<Integer, Integer> movieratings2 = movieratings.reduceByKey((n1, n2) -> n1 + n2);
+
+        movieratings2.sortByKey().collect().forEach(r -> System.out.println(r));
+
 
     }
 
@@ -73,6 +132,8 @@ public class CollaborativeFilteringTest {
                     Double.parseDouble(sarray[2]) // rating
             );
         });
+
+
 
         CoordinateMatrix ratingCoordinateMatrix = new CoordinateMatrix(ratings.map(r ->
                 (new MatrixEntry(r.user(), r.product(), r.rating()))).rdd()
