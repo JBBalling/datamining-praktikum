@@ -78,20 +78,14 @@ public class CollaborativeFiltering {
             );
         });
 
-        JavaRDD<Rating> training = ratings.sample(false, 0.8);
+        JavaRDD<Rating> training = ratings.sample(false, 0.8, 11L);
         training.cache();
         JavaRDD<Rating> test = ratings.subtract(training);
         test.cache();
 
-
         // standardisieren?
 
-
         CoordinateMatrix ratingCoordinateMatrixTraining = new CoordinateMatrix(training.map(r -> // training
-                (new MatrixEntry(r.user(), r.product(), r.rating()))).rdd()
-        );
-
-        CoordinateMatrix ratingCoordinateMatrixTest = new CoordinateMatrix(test.map(r -> // test
                 (new MatrixEntry(r.user(), r.product(), r.rating()))).rdd()
         );
 
@@ -109,22 +103,21 @@ public class CollaborativeFiltering {
         System.out.println();
         */
 
+        // JavaPairRDD<Tuple2<NutzerID, FilmID x>, ArrayList<Tuple2<Tuple2<FilmID y, Bewertung>, Cos-Ähnlichkeit von Film x zu y>>>
         JavaPairRDD<Tuple2<Long, Integer>, ArrayList<Tuple2<Tuple2<Integer, Double>, Double>>> userRatingsWithSimilarities = ratingCoordinateMatrixTraining.toIndexedRowMatrix().rows().toJavaRDD().flatMapToPair(r -> {
 
+            // r: index (NutzerID) & vector (Bewertungen des Nutzers)
+
+            // <Tuple2<Tuple2<NutzerID, FilmID x>, ArrayList<Tuple2<Tuple2<FilmID y, Nutzerrating>, Ähnlichkeit x zu y>>>
             ArrayList<Tuple2<Tuple2<Long, Integer>, ArrayList<Tuple2<Tuple2<Integer, Double>, Double>>>> list = new ArrayList<>();
 
-            double[] userRatingsArray = r.vector().toArray();
+            double[] userRatingsArray = r.vector().toArray(); // alle Bewertungen des Nutzers
 
-            for (int i = 0; i < broadcastColSim.value().length; i++) {
-            // for (int movieID : r.vector().toSparse().indices()) {
+            for (int i = 0; i < broadcastColSim.value().length; i++) { // Anzahl aller Filme
 
                 int movieID = i;
 
-                if (movieID >= broadcastColSim.value().length) {
-                    continue;
-                }
-
-                double[] ratingSimilarities = broadcastColSim.value()[movieID]; // für Film movieID
+                double[] ratingSimilarities = broadcastColSim.value()[movieID]; // Ähnlichkeiten aller Filme für Film 'movieID'
 
                 int amountOfMovies = ratingSimilarities.length;
 
@@ -135,6 +128,10 @@ public class CollaborativeFiltering {
                     if (j < userRatingsArray.length && userRatingsArray[j] != 0 && j != movieID) {
 
                         if (movieRatingsWithSimilarities.size() == k.value()) {
+                            /*
+                            Es sind bereits k ähnlichste Filme enthalten, also wird der Film mit der niedrigsten Ähnlichkeit entfernt
+                             */
+
                             double smallest = Double.MAX_VALUE;
                             int indexSmallest = -1;
                             for (int x = 0; x < movieRatingsWithSimilarities.size(); x++) {
@@ -155,10 +152,10 @@ public class CollaborativeFiltering {
 
                         movieRatingsWithSimilarities.add(new Tuple2<Tuple2<Integer, Double>, Double>(
                                 new Tuple2<Integer, Double>(
-                                        j,
-                                        r.vector().apply(j)
+                                        j, // ID des Films
+                                        r.vector().apply(j) // Bewertung des Nutzers zu dem Film
                                 ),
-                                ratingSimilarities[j]
+                                ratingSimilarities[j] // Ähnlichkeit des Films zu dem betrachteten Film
                         ));
 
                     }
@@ -166,8 +163,8 @@ public class CollaborativeFiltering {
                 }
 
                 list.add(new Tuple2<Tuple2<Long, Integer>, ArrayList<Tuple2<Tuple2<Integer, Double>, Double>>>(
-                        new Tuple2<Long, Integer>(r.index(), movieID),
-                        movieRatingsWithSimilarities
+                        new Tuple2<Long, Integer>(r.index(), movieID), // (NutzerID, FilmID)
+                        movieRatingsWithSimilarities // ArrayList mit k ähnlichsten Filmen die vom Nutzer bewertet wurden
                 ));
 
             }
@@ -176,10 +173,11 @@ public class CollaborativeFiltering {
 
         });
 
+        // JavaPairRDD<Tuple2<Tuple2<NutzerID, FilmID>, ArrayList<Tuple2<Tuple2<FilmID, Bewertung>, Ähnlichkeit>>>, Prediction>
         JavaPairRDD<Tuple2<Tuple2<Long, Integer>, ArrayList<Tuple2<Tuple2<Integer, Double>, Double>>>, Double> userRatingsWithPredictions = userRatingsWithSimilarities.mapToPair(p -> {
 
-            double sumCosSimilarititesTimesRating = 0.0;
-            double sumCosSimilarities = 0.0;
+            double sumCosSimilarititesTimesRating = 0.0; // Summe(Ähnlichkeite * Bewertungen)
+            double sumCosSimilarities = 0.0; // Summe(Ähnlichkeiten)
 
             for (Tuple2<Tuple2<Integer, Double>, Double> t : p._2()) {
                 sumCosSimilarititesTimesRating += (t._2() * t._1()._2());
@@ -188,14 +186,18 @@ public class CollaborativeFiltering {
 
             if (sumCosSimilarities == 0) {
                 // System.out.println("0: " + p);
-                return new Tuple2<>(p, 0.0); // !!!!!!!!!!!!
+                return new Tuple2<>(p, 0.0); // es konnte keine Schätzung berechnet werden
             }
 
-            double prediction = sumCosSimilarititesTimesRating / sumCosSimilarities;
+            double prediction = sumCosSimilarititesTimesRating / sumCosSimilarities; // geschätzte Bewertung
 
             return new Tuple2<>(p, prediction);
 
         });
+
+        /*
+         * Berechnung der Bewertungsmetrik:
+         */
 
         JavaPairRDD<Tuple2<Long, Integer>, Double> userRatings = test.mapToPair(r ->
             new Tuple2<Tuple2<Long, Integer>, Double>(new Tuple2<Long, Integer>((long)r.user(), r.product()), r.rating())
@@ -220,6 +222,12 @@ public class CollaborativeFiltering {
 
     }
 
+    /**
+     *
+     * Cos-Ähnlichkeitsmatrix als double[][].
+     * Dreiecksmatrix wird dabei gespiegelt.
+     *
+     */
     private double[][] getCosSimMatrixAsDouble(CoordinateMatrix cosSimMat) {
 
         double[][] out = new double[(int)cosSimMat.numCols()][(int)cosSimMat.numRows()];
