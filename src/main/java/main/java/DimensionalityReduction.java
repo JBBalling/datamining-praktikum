@@ -14,6 +14,9 @@ import org.apache.spark.rdd.RDD;
 
 import java.util.List;
 
+/**
+ * bin/spark-submit --class main.java.DimensionalityReduction /Users/jakobschwerter/Development/data-mining-praktikum/target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ */
 public class DimensionalityReduction {
 
     public static void main(String[] args) throws Exception {
@@ -32,7 +35,7 @@ public class DimensionalityReduction {
             return Vectors.dense(values);
         });
 
-        // standardize
+        // standardisieren
         RDD<Vector> parsedDataAsRDD = parsedData.rdd();
         StandardScalerModel scalerModel = new StandardScaler(true, true).fit(parsedDataAsRDD);
         RDD<Vector> parsedDataAsRDD_scaled = scalerModel.transform(parsedDataAsRDD);
@@ -41,7 +44,6 @@ public class DimensionalityReduction {
         JavaRDD<Vector> rows_scaled = jsc.parallelize(data_scaled);
 
         RowMatrix data = new RowMatrix(rows_scaled.rdd());
-
 
         svd(data, 2);
 

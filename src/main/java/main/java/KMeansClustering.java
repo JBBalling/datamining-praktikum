@@ -11,14 +11,20 @@ import org.apache.spark.mllib.linalg.Vectors;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+/**
+ * bin/spark-submit --class main.java.KMeansClustering /Users/jakobschwerter/Development/data-mining-praktikum/target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ */
 public class KMeansClustering {
 
     public static void main(String[] args) throws Exception {
 
+        String path = "/Users/jakobschwerter/Documents/Uni/Moderne Datenbanktechnologien/Praktikum - Data Mining/dataminingpraktikum-master/daten/documentsTfidf.txt";
+        String output = "/Users/jakobschwerter/Documents/Uni/";
+
         SparkConf conf = new SparkConf();
         JavaSparkContext jsc = new JavaSparkContext(conf);
 
-        JavaRDD<String> data = jsc.textFile(args[0]);
+        JavaRDD<String> data = jsc.textFile(path);
         JavaRDD<Vector> parsedData = data.map(s -> {
             String[] sarray = s.split(" ");
             double[] values = new double[sarray.length];
@@ -34,24 +40,22 @@ public class KMeansClustering {
         int numIterations = 100;
 
         StringBuilder stringBuilder = new StringBuilder();
-
         for(int i = minNumClusters; i <= maxNumClusters; i++) {
             KMeansModel clusters = KMeans.train(parsedData.rdd(), i, numIterations, initModeString(true));
             double cost = clusters.computeCost(parsedData.rdd());
             String str = i + " " + cost + "\n";
             stringBuilder.append(str);
         }
+        Files.write( Paths.get(output + "kMeansClustering.txt"), stringBuilder.toString().getBytes());
 
-        stringBuilder.append("\n");
-
+        stringBuilder = new StringBuilder();
         for(int i = minNumClusters; i <= maxNumClusters; i++) {
             KMeansModel clusters = KMeans.train(parsedData.rdd(), i, numIterations, initModeString(false));
             double cost = clusters.computeCost(parsedData.rdd());
             String str = i + " " + cost + "\n";
             stringBuilder.append(str);
         }
-
-        Files.write( Paths.get(args[1] + ".txt"), stringBuilder.toString().getBytes());
+        Files.write( Paths.get(output + "randomClustering.txt"), stringBuilder.toString().getBytes());
 
         jsc.close();
 

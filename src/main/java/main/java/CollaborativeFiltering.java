@@ -6,21 +6,12 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.mllib.evaluation.RegressionMetrics;
-import org.apache.spark.mllib.linalg.Vector;
-import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.mllib.linalg.distributed.CoordinateMatrix;
-import org.apache.spark.mllib.linalg.distributed.IndexedRow;
 import org.apache.spark.mllib.linalg.distributed.MatrixEntry;
 import org.apache.spark.mllib.recommendation.Rating;
-import org.apache.spark.rdd.RDD;
 import scala.Tuple2;
-import shapeless.Tuple;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
 
 /**
  * bin/spark-submit --class main.java.CollaborativeFiltering /Users/jakobschwerter/Development/data-mining-praktikum/target/data-mining-praktikum-1.0-SNAPSHOT.jar
@@ -34,10 +25,6 @@ public class CollaborativeFiltering {
 
     private String path = "/Users/jakobschwerter/Documents/Uni/Moderne Datenbanktechnologien/Praktikum - Data Mining/dataminingpraktikum-master/daten/ratings.txt";
 
-    private String testImputPath = "/Users/jakobschwerter/Documents/Uni/vorlBsp.txt";
-
-    private String outputPath = "/Users/jakobschwerter/Documents/Uni/";
-
     CollaborativeFiltering() {
         SparkConf conf = new SparkConf();
         jsc = new JavaSparkContext(conf);
@@ -47,17 +34,9 @@ public class CollaborativeFiltering {
 
         CollaborativeFiltering cf = new CollaborativeFiltering();
 
-        System.out.println("[k=5] RMSE: " + cf.collaborativeFiltering(cf.path, 5));
-
-        System.out.println("[k=10] RMSE: " + cf.collaborativeFiltering(cf.path, 10));
-
-        System.out.println("[k=15] RMSE: " + cf.collaborativeFiltering(cf.path, 15));
-
-        System.out.println("[k=20] RMSE: " + cf.collaborativeFiltering(cf.path, 20));
-
-        System.out.println("[k=25] RMSE: " + cf.collaborativeFiltering(cf.path, 25));
-
-        System.out.println("[k=30] RMSE: " + cf.collaborativeFiltering(cf.path, 30));
+        for (int i = 5; i <= 30; i = i + 5) {
+            System.out.println("[k=" + i + "] RMSE: " + cf.collaborativeFiltering(cf.path, i));
+        }
 
         cf.jsc.stop();
 
@@ -127,6 +106,9 @@ public class CollaborativeFiltering {
 
                     if (j < userRatingsArray.length && userRatingsArray[j] != 0 && j != movieID) {
 
+                        /*
+                        optimieren: liste immer sortiert halten. wert an passender stelle einfügen und index 0 entfernen
+                         */
                         if (movieRatingsWithSimilarities.size() == k.value()) {
                             /*
                             Es sind bereits k ähnlichste Filme enthalten, also wird der Film mit der niedrigsten Ähnlichkeit entfernt

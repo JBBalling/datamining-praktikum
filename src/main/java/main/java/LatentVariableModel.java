@@ -10,6 +10,9 @@ import org.apache.spark.mllib.recommendation.MatrixFactorizationModel;
 import org.apache.spark.mllib.recommendation.Rating;
 import scala.Tuple2;
 
+/**
+ * bin/spark-submit --class main.java.LatentVariableModel /Users/jakobschwerter/Development/data-mining-praktikum/target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ */
 public class LatentVariableModel {
 
     public static void main(String[] args) {
