@@ -8,7 +8,7 @@
 
 Das Praktikum setzt sich aus mehreren Teilaufgaben zusammen, welche jeweils mit einem Testat (60 min) abgeschlossen und bewertet werden. Insgesamt gibt es drei Testate.
 
-1. [Testat 1](https://github.com/jakobschwerter/data-mining-praktikum//tree/master/src/main/java/main.java/testat01)
+1. [Testat 1](https://github.com/jakobschwerter/data-mining-praktikum/tree/master/src/main/java/main/java/testat01)
 2. [Testat 2]()
 3. [Testat 3]()
 
