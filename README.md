@@ -9,8 +9,8 @@
 Das Praktikum setzt sich aus mehreren Teilaufgaben zusammen, welche jeweils mit einem Testat (60 min) abgeschlossen und bewertet werden. Insgesamt gibt es drei Testate.
 
 1. [Testat 1](https://github.com/jakobschwerter/data-mining-praktikum/tree/master/src/main/java/main/java/testat01)
-2. [Testat 2]()
-3. [Testat 3]()
+2. [Testat 2](https://github.com/jakobschwerter/data-mining-praktikum/tree/master/src/main/java/main/java/testat02)
+3. [Testat 3](https://github.com/jakobschwerter/data-mining-praktikum/tree/master/src/main/java/main/java/testat03)
 
 Die Testate sind spätestens bis zu folgenden Fristen abzulegen:
 
@@ -20,15 +20,12 @@ Die Testate sind spätestens bis zu folgenden Fristen abzulegen:
 
 Der Termin für das dritte Testat ist bis spätestens Ende Februar zu vereinbaren!
 
-```
 Die Testat-Termine sind mit Ihrem jeweiligen Betreuer eine Woche im Voraus per E-Mail (oder ggfs. Moodle) zu vereinbaren. Wird ein Termin nicht eingehalten, verfallen die bereits erbrachten Teilleistungen! 
 
 Die Gruppen mit dem Schwerpunkt “Data Mining” müssen spätestens 24 Stunden vor Ihrem Testat-Termin Ihre Lösung Ihrem Betreuer per E-Mail zusenden. 
 Bitte geben Sie im Betreff der E-Mail dmprak sowie Ihre Gruppennummer an. Nehmen Sie dabei Ihren Gruppenpartner mit ins CC.
-```
 
 Zur Erzielung der Leistungspunkte müssen alle drei Testate erfolgreich abgelegt werden. Dabei ist die Anwesenheit beim Testat für alle Gruppenmitglieder verpflichtend. Die Endnote ergibt sich aus dem Durchschnitt der drei Testat-Noten.
-
 
 ## Tutorial
 Dateien aus dem Tutorial:
