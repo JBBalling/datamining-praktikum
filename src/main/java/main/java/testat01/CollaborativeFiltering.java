@@ -7,6 +7,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.mllib.evaluation.RegressionMetrics;
 import org.apache.spark.mllib.linalg.distributed.CoordinateMatrix;
+import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix;
 import org.apache.spark.mllib.linalg.distributed.MatrixEntry;
 import org.apache.spark.mllib.recommendation.Rating;
 import scala.Tuple2;
@@ -69,13 +70,11 @@ public class CollaborativeFiltering {
         JavaRDD<Rating> test = ratings.subtract(training);
         test.cache();
 
-        // standardisieren?
-
-        CoordinateMatrix ratingCoordinateMatrixTraining = new CoordinateMatrix(training.map(r -> // training
+        IndexedRowMatrix ratingIndexedRowMatrix = new CoordinateMatrix(training.map(r ->
                 (new MatrixEntry(r.user(), r.product(), r.rating()))).rdd()
-        );
+        ).toIndexedRowMatrix();
 
-        CoordinateMatrix cosSimMatrix = ratingCoordinateMatrixTraining.toIndexedRowMatrix().columnSimilarities();
+        CoordinateMatrix cosSimMatrix = ratingIndexedRowMatrix.columnSimilarities();
 
         Broadcast<double[][]> broadcastColSim = jsc.broadcast(getCosSimMatrixAsDouble(cosSimMatrix)); // broadcastColSim.value() zum abrufen
 
@@ -90,7 +89,7 @@ public class CollaborativeFiltering {
         */
 
         // JavaPairRDD<Tuple2<NutzerID, FilmID x>, ArrayList<Tuple2<Tuple2<FilmID y, Bewertung>, Cos-Ähnlichkeit von Film x zu y>>>
-        JavaPairRDD<Tuple2<Long, Integer>, ArrayList<Tuple2<Tuple2<Integer, Double>, Double>>> userRatingsWithSimilarities = ratingCoordinateMatrixTraining.toIndexedRowMatrix().rows().toJavaRDD().flatMapToPair(r -> {
+        JavaPairRDD<Tuple2<Long, Integer>, ArrayList<Tuple2<Tuple2<Integer, Double>, Double>>> userRatingsWithSimilarities = ratingIndexedRowMatrix.rows().toJavaRDD().flatMapToPair(r -> {
 
             // r: index (NutzerID) & vector (Bewertungen des Nutzers)
 
