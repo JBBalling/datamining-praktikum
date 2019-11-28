@@ -43,7 +43,7 @@ Ziel dieser Aufgabe ist es also, Cluster aus thematisch ähnlichen Dokumenten zu
 
 Speichern Sie die Ergebnisse in einer Datei und stellen Sie die Beziehung zwischen k und Güte grafisch dar! Beispiel: 
 
-<img src="output/kMeansClustering/costs.png" alt="costs by k" width="800"/>
+<img src="testat01_readme_pictures/kMeansClustering/costs.png" alt="costs by k" width="800"/>
 
 ### 3. Dimensionsreduktion (4 Punkte)
 
@@ -72,7 +72,7 @@ Schätzen Sie ein Empfehlungsmodell anhand des ALS Algorithmus.
  
 Speichern Sie die Ergebnisse in einer Datei und stellen Sie die Beziehung zwischen den Parametern und dem RMSE grafisch dar! Beispiel: 
 
-<img src="output/recommendationALS/rmse.png" alt="costs by k" width="800"/>
+<img src="testat01_readme_pictures/recommendationALS/rmse.png" alt="costs by k" width="800"/>
 
 #### 4b) Collaborative Filtering (10 Punkte)
 
@@ -88,4 +88,4 @@ Zu dieser Methode gibt es keine Implementierung in Spark. Wie empfehlen allerdin
 
 Speichern Sie die Ergebnisse in einer Datei und stellen Sie die Beziehung zwischen dem Parameter und dem RMSE grafisch dar! Beispiel: 
 
-<img src="output/recommendationCF/rmse.png" alt="costs by k" width="800"/>
+<img src="testat01_readme_pictures/recommendationCF/rmse.png" alt="costs by k" width="800"/>
