@@ -8,9 +8,9 @@
 
 Das Praktikum setzt sich aus mehreren Teilaufgaben zusammen, welche jeweils mit einem Testat (60 min) abgeschlossen und bewertet werden. Insgesamt gibt es drei Testate.
 
-1. [Testat 1](https://github.com/jakobschwerter/data-mining-praktikum/tree/master/src/main/java/main/java/testat01)
-2. [Testat 2](https://github.com/jakobschwerter/data-mining-praktikum/tree/master/src/main/java/main/java/testat02)
-3. [Testat 3](https://github.com/jakobschwerter/data-mining-praktikum/tree/master/src/main/java/main/java/testat03)
+1. [Testat 1](https://github.com/jakobschwerter/data-mining-praktikum/tree/master/src/main/java/testat01)
+2. [Testat 2](https://github.com/jakobschwerter/data-mining-praktikum/tree/master/src/main/java/testat02)
+3. [Testat 3](https://github.com/jakobschwerter/data-mining-praktikum/tree/master/src/main/java/testat03)
 
 Die Testate sind spätestens bis zu folgenden Fristen abzulegen:
 
@@ -29,4 +29,4 @@ Zur Erzielung der Leistungspunkte müssen alle drei Testate erfolgreich abgelegt
 
 ## Tutorial
 Dateien aus dem Tutorial:
-[Link](https://github.com/jakobschwerter/data-mining-praktikum//tree/master/src/main/java/main.java/tutorial)
+[Link](https://github.com/jakobschwerter/data-mining-praktikum//tree/master/src/main/java/tutorial)
