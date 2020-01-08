@@ -1,10 +1,10 @@
-package main.java.tutorial;
+package tutorial;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 
 /**
- * sparkSubmit --class main.java.tutorial.SimpleApp target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ * sparkSubmit --class tutorial.SimpleApp target/data-mining-praktikum-1.0-SNAPSHOT.jar
  */
 public class SimpleApp {
     public static void main(String[] args) throws Exception {

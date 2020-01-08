@@ -1,4 +1,4 @@
-package main.java.testat01;
+package testat01;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
@@ -15,7 +15,7 @@ import org.apache.spark.rdd.RDD;
 import java.util.List;
 
 /**
- * sparkSubmit --class main.java.testat01.DimensionalityReduction target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ * sparkSubmit --class testat01.DimensionalityReduction target/data-mining-praktikum-1.0-SNAPSHOT.jar
  */
 public class DimensionalityReduction {
 

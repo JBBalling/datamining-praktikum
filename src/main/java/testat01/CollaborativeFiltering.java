@@ -1,4 +1,4 @@
-package main.java.testat01;
+package testat01;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -17,7 +17,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 
 /**
- * sparkSubmit --class main.java.testat01.CollaborativeFiltering target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ * sparkSubmit --class testat01.CollaborativeFiltering target/data-mining-praktikum-1.0-SNAPSHOT.jar
  *
  * Nutzer: 943
  * Filme: 1682

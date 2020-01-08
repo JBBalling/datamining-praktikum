@@ -1,4 +1,4 @@
-package main.java.testat01;
+package testat01;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
@@ -8,13 +8,11 @@ import org.apache.spark.mllib.clustering.KMeansModel;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
 /**
- * sparkSubmit --class main.java.testat01.KMeansClustering target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ * sparkSubmit --class testat01.KMeansClustering target/data-mining-praktikum-1.0-SNAPSHOT.jar
  */
 public class KMeansClustering {
 

@@ -1,4 +1,4 @@
-package main.java.testat01;
+package testat01;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -14,7 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 /**
- * sparkSubmit --class main.java.testat01.LatentVariableModel target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ * sparkSubmit --class testat01.LatentVariableModel target/data-mining-praktikum-1.0-SNAPSHOT.jar
  */
 public class LatentVariableModel {
 

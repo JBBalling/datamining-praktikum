@@ -1,4 +1,4 @@
-package main.java.testat01;
+package testat01;
 
 import java.util.Arrays;
 
@@ -10,7 +10,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import scala.Tuple2;
 
 /**
- * sparkSubmit --class main.java.testat01.BeginningLetterCount target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ * sparkSubmit --class testat01.BeginningLetterCount target/data-mining-praktikum-1.0-SNAPSHOT.jar
  */
 public class BeginningLetterCount {
 

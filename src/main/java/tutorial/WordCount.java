@@ -1,4 +1,4 @@
-package main.java.tutorial;
+package tutorial;
 
 import java.util.Arrays;
 
@@ -10,7 +10,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import scala.Tuple2;
 
 /**
- * sparkSubmit --class main.java.tutorial.WordCount target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ * sparkSubmit --class tutorial.WordCount target/data-mining-praktikum-1.0-SNAPSHOT.jar
  */
 public class WordCount {
     public static void main(String[] args) throws Exception {
