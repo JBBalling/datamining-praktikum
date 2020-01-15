@@ -4,7 +4,7 @@ public class Rule {
 
     private ItemSet body;
     private ItemSet head;
-    private Double confidence;
+    private Double confidence = 0.0;
 
     public Rule(ItemSet ruleBody, ItemSet ruleHead) {
         body = ruleBody;
@@ -30,12 +30,16 @@ public class Rule {
     @Override
     public String toString() {
         StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append(body.toString());
+        stringBuilder.append(getBody().toString());
         stringBuilder.append(" -> ");
-        stringBuilder.append(head.toString());
+        stringBuilder.append(getHead().toString());
+        stringBuilder.append(" (Confidence: ");
+        stringBuilder.append(getConfidence());
+        stringBuilder.append(")");
         return stringBuilder.toString();
     }
 
+    /*
     @Override
     public boolean equals(Object o) {
         if (!o.getClass().equals(this.getClass())) {
@@ -52,5 +56,6 @@ public class Rule {
         stringBuilder.append(head.hashCode());
         return stringBuilder.toString().hashCode();
     }
+    */
 
 }
