@@ -47,16 +47,16 @@ public class APriori {
         jsc = new JavaSparkContext(conf);
     }
 
-    /*
-
-    Support einer Elementmenge I (sup(I)): Anteil der Warenkörbe, welche alle Elemente aus I enthalten
-
-    Gegeben eines Schwellenwerts s, eine Elementmenge I wird als Häufige Elementmenge bezeichnet, falls sup(I) ≥ s
-
-    Confidence: sup(i_1, i_2, ..., i_k, j) / sup(i_1, i_2, ..., i_k)
-
+    /**
+     * Notizen:
+     * Support einer Elementmenge I (sup(I)): Anteil der Warenkörbe, welche alle Elemente aus I enthalten
+     * Gegeben eines Schwellenwerts s, eine Elementmenge I wird als Häufige Elementmenge bezeichnet, falls sup(I) ≥ s
+     * Confidence: sup(i_1, i_2, ..., i_k, j) / sup(i_1, i_2, ..., i_k)
      */
 
+    /**
+     * Setzt den APriori Algorithmus um (für 1, 2 und 3 elementige Mengen)
+     */
     private void aPriori() {
 
         Broadcast<Double> confidence = jsc.broadcast(minConfidence);
@@ -140,7 +140,7 @@ public class APriori {
 
     /*
      * Bestimmt alle ItemSets die häufig vorkommen
-     * Nicht benutztbar (not serializable)
+     * Nicht als Funktion benutztbar (not serializable)
      */
     /**
     private void getAllFrequentItemSets(JavaRDD<ItemSet> allSessions, JavaRDD<ItemSet> input, int totalAmountOfSessions) {
@@ -160,60 +160,8 @@ public class APriori {
 
     }*/
 
-    private void aPrioriOld() {
-
-        // long amount = candidatesWith1Element.count(); // number of Product IDs (with duplicates)
-        // long amountDistinct = counts.count(); // number of distinct product IDs
-
-        double conf = minConfidence;
-        double sup = minSupport;
-
-        JavaRDD<String> lines = jsc.textFile(path);
-
-        long amountOfSessions = lines.count();
-
-        /*
-        JavaRDD<ItemSet> input = lines.map(s -> {
-            String[] sarray = s.split("\\s+");
-            ItemSet itemSet = new ItemSet();
-            itemSet.add(sarray);
-            return itemSet;
-        });
-        */
-
-        JavaPairRDD<String, Integer> candidatesWith1Element = lines.flatMapToPair(s -> {
-            ArrayList<Tuple2<String, Integer>> list = new ArrayList<Tuple2<String, Integer>>();
-            List<String> l = Arrays.asList(s.split("\\s+"))
-                    .stream()
-                    .distinct()
-                    .collect(Collectors.toList());
-            for (String string : l) {
-                list.add(new Tuple2<>(string, 1));
-            }
-            return list.iterator();
-        });
-
-        JavaRDD<String> frequentSetsWith1Element = candidatesWith1Element.reduceByKey((n1, n2) -> n1 + n2)
-                .mapToPair(c -> new Tuple2<String, Double>(c._1, (double) c._2 / amountOfSessions))
-                .filter(s -> s._2 >= sup)
-                .keys();
-
-        JavaPairRDD<String, String> candidatesWith2Elements = frequentSetsWith1Element.zipWithIndex()
-                .cartesian(frequentSetsWith1Element.zipWithIndex())
-                .filter(f -> f._1()._2 < f._2()._2)
-                .mapToPair(x -> new Tuple2<String, String>(x._1._1, x._2._1));
-
-        JavaPairRDD<Tuple2<String, String>, Integer> frequentSetsWith2Elements = candidatesWith2Elements.mapToPair(p -> new Tuple2<Tuple2<String, String>, Integer>(p, 0));
-
-        // JavaRDD<ItemSet> allPairs = allPairsAsPairRDD.map(p -> new ItemSet(p));
-
-        //allPairs.foreach(s -> System.out.println(s));
-        //System.out.println(allPairs.count());
-
-    }
-
     /**
-     * Vorgegebebe Umsetzung zum Vergleichen
+     * Vorgegebebe Umsetzung zum Vergleichen:
      */
     private void associationRules() {
 
@@ -238,6 +186,9 @@ public class APriori {
 
     }
 
+    /**
+     * Zum Testen:
+     */
     private void test() {
         JavaRDD<String> test1 = jsc.parallelize(Arrays.asList("a", "b", "c", "d", "e", "f", "g"));
         JavaRDD<String> test2 = jsc.parallelize(Arrays.asList("x", "y", "z"));
