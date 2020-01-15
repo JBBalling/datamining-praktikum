@@ -4,9 +4,10 @@ import scala.Tuple2;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
 
-public class ItemSet {
+public class ItemSet implements java.io.Serializable {
 
     private ArrayList<String> items;
 
@@ -14,13 +15,17 @@ public class ItemSet {
         items = new ArrayList<String>();
     }
 
-    public ItemSet(Tuple2 tuple) {
+    public ItemSet(String string) {
         items = new ArrayList<String>();
-        add((String)tuple._1);
-        add((String)tuple._2);
+        add(string);
     }
 
-    public ArrayList getItems() {
+    public ItemSet(List<String> list) {
+        items = new ArrayList<String>();
+        items.addAll(list);
+    }
+
+    public ArrayList<String> getItems() {
         return items;
     }
 
@@ -31,12 +36,37 @@ public class ItemSet {
         items.add(item);
     }
 
-    public void add(String[] itemArr) {
-        items.addAll(Arrays.asList(itemArr)
-                .stream()
-                .distinct()
-                .collect(Collectors.toList())
-        );
+    public void addAll(ArrayList<String> list) {
+        for (String string : list) {
+            if (!items.contains(string)) {
+                items.add(string);
+            }
+        }
+    }
+
+    public void add(ItemSet itemSet) {
+        addAll(itemSet.getItems());
+    }
+
+    public boolean containsAllElements(ItemSet itemSet) {
+        return items.containsAll(itemSet.getItems());
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("[");
+        boolean start = true;
+        for (String string : items) {
+            if (start) {
+                start = false;
+            } else {
+                stringBuilder.append(", ");
+            }
+            stringBuilder.append(string);
+        }
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 
     @Override
