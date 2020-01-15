@@ -88,7 +88,7 @@ public class APriori {
                 .reduceByKey((n1, n2) -> n1 + n2)
                 .filter(s -> (((double) s._2 / amountOfSessions.value()) >= support.value()))
                 .keys();
-        System.out.println(frequentSetsWith1Element.count());
+        System.out.println(frequentSetsWith1Element.count()); // 230
 
         // alle 2-elementigen Mengen, die sich aus den 1-elementigen Mengen bilden lassen (Kandidaten)
         JavaRDD<ItemSet> candidatesWith2Elements = frequentSetsWith1Element.zipWithIndex()
@@ -111,13 +111,12 @@ public class APriori {
             return new ArrayList<Tuple2<ItemSet, Integer>>().iterator();
         });
         JavaRDD<ItemSet> frequentSetsWith2Elements = frequentSetsWith2ElementsCounters.reduceByKey((n1, n2) -> n1 + n2)
-                .filter(x -> (x._2 / amountOfSessions.value()) >= support.value())
+                .filter(x -> ((double) x._2 / amountOfSessions.value()) >= support.value())
                 .map(y -> y._1);
-        frequentSetsWith2Elements.foreach(s -> System.out.println(s));
-        System.out.println(frequentSetsWith2Elements.count()); // 110 ?
+        System.out.println(frequentSetsWith2Elements.count()); // 110
 
         // alle 3-elementigen Kandidaten TODO
-        JavaRDD<ItemSet> candidatesWith3Elements = null;
+        // JavaRDD<ItemSet> candidatesWith3Elements = null;
 
         // alle häufigen 3-elementigen Mengen TODO zu langsam?
         /**
