@@ -5,6 +5,7 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.Function;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.mllib.fpm.AssociationRules;
 import org.apache.spark.mllib.fpm.FPGrowth;
@@ -13,6 +14,7 @@ import org.apache.spark.util.DoubleAccumulator;
 import org.apache.spark.util.LongAccumulator;
 import scala.Array;
 import scala.Tuple2;
+import shapeless.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,7 +64,7 @@ public class APriori {
         Broadcast<Double> confidence = jsc.broadcast(minConfidence);
         Broadcast<Double> support = jsc.broadcast(minSupport);
 
-        JavaRDD<String> lines = jsc.textFile(path);
+        JavaRDD<String> lines = jsc.textFile(path); // .sample(false, 0.1, 11L); // sample nur zum test
 
         Broadcast<Long> amountOfSessions = jsc.broadcast(lines.count());
 
@@ -81,14 +83,15 @@ public class APriori {
                 list.add(new ItemSet(string));
             }
             return list.iterator();
-        }); // .distinct();
+        });
+        System.out.println("C1: " + allCandidatesWith1Element.distinct().count());
 
         // alle häufigen 1-elementigen Mengen
         JavaRDD<ItemSet> frequentSetsWith1Element = allCandidatesWith1Element.mapToPair(m -> new Tuple2<ItemSet, Integer>(m, 1))
                 .reduceByKey((n1, n2) -> n1 + n2)
                 .filter(s -> (((double) s._2 / amountOfSessions.value()) >= support.value()))
                 .keys();
-        System.out.println(frequentSetsWith1Element.count()); // 230
+        System.out.println("L1: " + frequentSetsWith1Element.count()); // 230
 
         // alle 2-elementigen Mengen, die sich aus den 1-elementigen Mengen bilden lassen (Kandidaten)
         JavaRDD<ItemSet> candidatesWith2Elements = frequentSetsWith1Element.zipWithIndex()
@@ -100,40 +103,83 @@ public class APriori {
                     set.add(x._2._1);
                     return set;
                 });
+        System.out.println("C2: " + candidatesWith2Elements.count());
 
         // alle häufigen 2-elementigen Mengen TODO zu langsam?
-        JavaPairRDD<ItemSet, Integer> frequentSetsWith2ElementsCounters = candidatesWith2Elements.cartesian(sessions).flatMapToPair(c -> { // ca. 800 mio. Mal :(
-            if (c._2.containsAllElements(c._1)) {
-                ArrayList<Tuple2<ItemSet, Integer>> list =  new ArrayList<Tuple2<ItemSet, Integer>>();
-                list.add(new Tuple2<ItemSet, Integer>(c._1, 1));
-                return list.iterator();
-            }
-            return new ArrayList<Tuple2<ItemSet, Integer>>().iterator();
-        });
-        JavaRDD<ItemSet> frequentSetsWith2Elements = frequentSetsWith2ElementsCounters.reduceByKey((n1, n2) -> n1 + n2)
-                .filter(x -> ((double) x._2 / amountOfSessions.value()) >= support.value())
-                .map(y -> y._1);
-        System.out.println(frequentSetsWith2Elements.count()); // 110
+        JavaPairRDD<ItemSet, Double> frequentSetsWith2Elements = candidatesWith2Elements.cartesian(sessions)
+                .flatMapToPair(c -> { // ca. 800 mio. Mal :(
+                    if (c._2.containsAllElements(c._1)) {
+                        ArrayList<Tuple2<ItemSet, Integer>> list =  new ArrayList<Tuple2<ItemSet, Integer>>();
+                        list.add(new Tuple2<ItemSet, Integer>(c._1, 1));
+                        return list.iterator();
+                    }
+                    return new ArrayList<Tuple2<ItemSet, Integer>>().iterator();
+                })
+                .reduceByKey((n1, n2) -> n1 + n2)
+                .mapToPair(p -> new Tuple2<ItemSet, Double>(p._1, ((double) p._2 / amountOfSessions.value())))
+                .filter(x -> x._2 >= support.value());
+        frequentSetsWith2Elements.cache();
+        System.out.println("L2: " + frequentSetsWith2Elements.count()); // 110
 
-        // alle 3-elementigen Kandidaten TODO
-        // JavaRDD<ItemSet> candidatesWith3Elements = null;
+        // alle 3-elementigen Kandidaten
+        JavaRDD<ItemSet> candidatesWith3Elements = frequentSetsWith2Elements.cartesian(frequentSetsWith2Elements)
+                .flatMap(x -> x._1._1.getPossibleCombinations(x._2._1).iterator());
+        System.out.println("C3: " + candidatesWith3Elements.count());
 
         // alle häufigen 3-elementigen Mengen TODO zu langsam?
-        /**
-        JavaPairRDD<ItemSet, Integer> frequentSetsWith3ElementsCounters = candidatesWith3Elements.cartesian(sessions).flatMapToPair(c -> {
-            if (c._2.containsAllElements(c._1)) {
-                ArrayList<Tuple2<ItemSet, Integer>> list =  new ArrayList<Tuple2<ItemSet, Integer>>();
-                list.add(new Tuple2<ItemSet, Integer>(c._1, 1));
-                return list.iterator();
-            }
-            return new ArrayList<Tuple2<ItemSet, Integer>>().iterator();
-        });
-        JavaRDD<ItemSet> frequentSetsWith3Elements = frequentSetsWith3ElementsCounters.reduceByKey((n1, n2) -> n1 + n2)
-                .filter(x -> (x._2 / amountOfSessions.value()) >= support.value())
-                .map(y -> y._1);
+        JavaPairRDD<ItemSet, Double> frequentSetsWith3Elements = candidatesWith3Elements.cartesian(sessions)
+                .flatMapToPair(c -> {
+                    if (c._2.containsAllElements(c._1)) {
+                        ArrayList<Tuple2<ItemSet, Integer>> list =  new ArrayList<Tuple2<ItemSet, Integer>>();
+                        list.add(new Tuple2<ItemSet, Integer>(c._1, 1));
+                        return list.iterator();
+                    }
+                    return new ArrayList<Tuple2<ItemSet, Integer>>().iterator();
+                })
+                .reduceByKey((n1, n2) -> n1 + n2)
+                .mapToPair(p -> new Tuple2<ItemSet, Double>(p._1, ((double) p._2 / amountOfSessions.value())))
+                .filter(x -> x._2 >= support.value());
+        frequentSetsWith3Elements.cache();
+        System.out.println("L3: " + frequentSetsWith3Elements.count()); // 16 ?
+
+        System.out.println();
         frequentSetsWith3Elements.foreach(s -> System.out.println(s));
-        System.out.println(frequentSetsWith3Elements.count()); // 16 ?
-         */
+
+        System.out.println();
+        System.out.println("Rules: ");
+
+        // alle Regeln mit Konfidenz berechen:
+        JavaPairRDD<Double, Rule> allRulesWithConfidence = frequentSetsWith2Elements.union(frequentSetsWith3Elements)
+                .flatMap(r -> {
+                    ArrayList<Tuple2<Tuple2<ItemSet, Double>, Rule>> list = new ArrayList<>(); // ((withJ, SupportWithJ), Rule)
+                    for (Rule rule : r._1.generateRules()) {
+                        list.add(new Tuple2<Tuple2<ItemSet, Double>, Rule>(r, rule));
+                    }
+                    return list.iterator();
+                })
+                .cartesian(sessions)
+                .flatMapToPair(x -> {
+                    if (x._2.containsAllElements(x._1._2.getBody())) {
+                        ArrayList<Tuple2<Tuple2<Rule, Double>, Integer>> list =  new ArrayList<Tuple2<Tuple2<Rule, Double>, Integer>>();
+                        list.add(new Tuple2<Tuple2<Rule, Double>, Integer>(new Tuple2<Rule, Double>(x._1._2, x._1._1._2), 1));
+                        return list.iterator();
+                    }
+                    return new ArrayList<Tuple2<Tuple2<Rule, Double>, Integer>>().iterator();
+                })
+                .reduceByKey((n1, n2) -> n1 + n2)
+                .mapToPair(t -> {
+                    double supportWithoutJ = ((double) t._2 / amountOfSessions.value());
+                    double conf = t._1._2 / supportWithoutJ;
+                    t._1._1.setConfidence(conf);
+                    return new Tuple2<Double, Rule>(conf, t._1._1);
+                })
+                .filter(f -> f._1 >= confidence.value())
+                .sortByKey(false);
+
+        // alle Regeln ausgeben
+        for (Tuple2 t : allRulesWithConfidence.collect()) {
+            System.out.println(t._2);
+        }
 
     }
 
@@ -204,6 +250,20 @@ public class APriori {
         });
 
         test3.foreach(s -> System.out.println(s));
+
+
+        JavaRDD<ItemSet> frequentSetsWithElements = jsc.parallelize(
+                Arrays.asList(
+                        new ItemSet[]{
+                                new ItemSet(Arrays.asList(new String[]{"1", "2", "3"})),
+                                new ItemSet(Arrays.asList(new String[]{"10", "20", "30"})),
+                                new ItemSet(Arrays.asList(new String[]{"100", "200", "300"})),
+                                new ItemSet(Arrays.asList(new String[]{"a", "b"})),
+                                new ItemSet(Arrays.asList(new String[]{"x", "y"})),
+                                new ItemSet(Arrays.asList(new String[]{"t", "u"}))
+                        }
+                )
+        );
     }
 
 }

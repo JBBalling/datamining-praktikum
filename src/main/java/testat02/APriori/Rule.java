@@ -1,6 +1,6 @@
 package testat02.APriori;
 
-public class Rule {
+public class Rule implements java.io.Serializable {
 
     private ItemSet body;
     private ItemSet head;
@@ -23,8 +23,9 @@ public class Rule {
         return confidence;
     }
 
-    public void setConfidence(Double confidence) {
+    public Rule setConfidence(Double confidence) {
         this.confidence = confidence;
+        return this;
     }
 
     @Override
