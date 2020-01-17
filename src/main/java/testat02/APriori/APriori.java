@@ -16,6 +16,8 @@ import scala.Array;
 import scala.Tuple2;
 import shapeless.Tuple;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 
 /**
  * sparkSubmit --class testat02.APriori.APriori target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ * ca. 30 min
  */
 public class APriori {
 
@@ -121,9 +124,29 @@ public class APriori {
         frequentSetsWith2Elements.cache();
         System.out.println("L2: " + frequentSetsWith2Elements.count()); // 110
 
+        // als txt zwischenspeichern:
+        StringBuilder stringBuilder = new StringBuilder();
+        for (Tuple2<ItemSet, Double> is : frequentSetsWith2Elements.collect()) {
+            stringBuilder.append(is._1.toString());
+            stringBuilder.append(", ");
+            stringBuilder.append(is._2);
+            stringBuilder.append("\n");
+        }
+        // mit support !!!
+        try {
+            Files.write(Paths.get(output + "/frequentPairs.txt"), stringBuilder.toString().getBytes());
+        } catch(Exception e) {
+
+        }
+
+        // txt einlesen
+
         // alle 3-elementigen Kandidaten
-        JavaRDD<ItemSet> candidatesWith3Elements = frequentSetsWith2Elements.cartesian(frequentSetsWith2Elements)
-                .flatMap(x -> x._1._1.getPossibleCombinations(x._2._1).iterator());
+        JavaRDD<ItemSet> candidatesWith3Elements = frequentSetsWith2Elements.zipWithIndex()
+                .cartesian(frequentSetsWith2Elements.zipWithIndex())
+                .filter(f -> f._1()._2 < f._2()._2)
+                .flatMap(x -> x._1._1._1.getPossibleCombinations(x._2._1._1).iterator())
+                .distinct();
         System.out.println("C3: " + candidatesWith3Elements.count());
 
         // alle häufigen 3-elementigen Mengen TODO zu langsam?
@@ -140,7 +163,7 @@ public class APriori {
                 .mapToPair(p -> new Tuple2<ItemSet, Double>(p._1, ((double) p._2 / amountOfSessions.value())))
                 .filter(x -> x._2 >= support.value());
         frequentSetsWith3Elements.cache();
-        System.out.println("L3: " + frequentSetsWith3Elements.count()); // 16 ?
+        System.out.println("L3: " + frequentSetsWith3Elements.count()); // 16
 
         System.out.println();
         frequentSetsWith3Elements.foreach(s -> System.out.println(s));
@@ -176,10 +199,25 @@ public class APriori {
                 .filter(f -> f._1 >= confidence.value())
                 .sortByKey(false);
 
+        /**
+         * - unterschiedliche Reihenfolgen in ItemSets?
+         * - duplizierte Tripel
+         * - hashCode / equals in Rule?
+         * - flatMaps für Häufigkeit durch map auf 0 und 1 ersetzen? --> Schneller, da es in den Reducern durchgeführt werden kann?
+         *
+         * Support der Tripel ist definitiv noch falsch
+         * Support ist doppelt so hoch wie soll
+         *
+         * Idee für Debugging: häufige Paare (L2) in txt-Datei zwischenspeichern und auslesen, damit der Schritt nicht
+         * immer wieder durchgeführt werden muss
+         */
+
         // alle Regeln ausgeben
         for (Tuple2 t : allRulesWithConfidence.collect()) {
             System.out.println(t._2);
         }
+
+        System.out.println(allRulesWithConfidence.count()); // 10
 
     }
 

@@ -40,13 +40,11 @@ public class Rule implements java.io.Serializable {
         return stringBuilder.toString();
     }
 
-    /*
     @Override
     public boolean equals(Object o) {
         if (!o.getClass().equals(this.getClass())) {
             return false;
         }
-        Rule other = (Rule) o;
         return body.equals(((Rule) o).getBody()) && head.equals(((Rule) o).getHead());
     }
 
@@ -57,6 +55,5 @@ public class Rule implements java.io.Serializable {
         stringBuilder.append(head.hashCode());
         return stringBuilder.toString().hashCode();
     }
-    */
 
 }

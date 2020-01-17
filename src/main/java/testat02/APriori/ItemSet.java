@@ -4,6 +4,7 @@ import scala.Tuple2;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -35,6 +36,7 @@ public class ItemSet implements java.io.Serializable {
     public ItemSet(List<String> list) {
         items = new ArrayList<String>();
         items.addAll(list);
+        sort();
     }
 
     public ArrayList<String> getItems() {
@@ -46,6 +48,7 @@ public class ItemSet implements java.io.Serializable {
             return;
         }
         items.add(item);
+        sort();
     }
 
     public void addAll(ArrayList<String> list) {
@@ -54,38 +57,28 @@ public class ItemSet implements java.io.Serializable {
                 items.add(string);
             }
         }
+        sort();
     }
 
     public void add(ItemSet itemSet) {
         addAll(itemSet.getItems());
     }
 
+    public void sort() {
+        Collections.sort(items.subList(1, items.size()));
+    }
+
     public ArrayList<ItemSet> getPossibleCombinations(ItemSet set) {
-        if (items.size() != set.getItems().size()) {
+        if (items.size() != set.getItems().size() || this.equals(set)) {
             return new ArrayList<ItemSet>();
         }
         int simAmount = items.size() - 1;
         ArrayList<ItemSet> combinations = new ArrayList<>();
         ArrayList<String> inBoth = getAllDoubles(set);
-        ArrayList<String> notInBoth = new ArrayList<>();
         if (inBoth.size() == simAmount) {
-            for (String str : items) {
-                if (!inBoth.contains(str)) {
-                    ItemSet comb = new ItemSet(inBoth);
-                    comb.add(str);
-                    combinations.add(comb);
-                }
-            }
-            for (String str : set.getItems()) {
-                if (!inBoth.contains(str)) {
-                    ItemSet comb = new ItemSet(inBoth);
-                    comb.add(str);
-                    combinations.add(comb);
-                }
-            }
-            return combinations;
-        } else if (inBoth.size() > simAmount) {
-            combinations.add(new ItemSet(inBoth));
+            ItemSet comb = new ItemSet(this, set);
+            comb.sort();
+            combinations.add(comb);
             return combinations;
         }
         return new ArrayList<ItemSet>();
@@ -122,14 +115,14 @@ public class ItemSet implements java.io.Serializable {
 
     public static void main(String[] args) {
         ItemSet test2 = new ItemSet();
-        test2.add("a");
+        test2.add("x");
         test2.add("b");
-        System.out.println(test2.generateRules());
+        test2.add("d");
         ItemSet test3 = new ItemSet();
-        test3.add("a");
+        test3.add("x");
         test3.add("b");
         test3.add("c");
-        System.out.println(test3.generateRules());
+        System.out.println(test2.getPossibleCombinations(test3));
     }
 
     @Override
@@ -160,6 +153,7 @@ public class ItemSet implements java.io.Serializable {
 
     @Override
     public final int hashCode() {
+        sort();
         return items.hashCode();
     }
 
