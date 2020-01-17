@@ -6,24 +6,24 @@ public class Rule implements java.io.Serializable {
     private ItemSet head;
     private Double confidence = 0.0;
 
-    public Rule(ItemSet ruleBody, ItemSet ruleHead) {
+    Rule(ItemSet ruleBody, ItemSet ruleHead) {
         body = ruleBody;
         head = ruleHead;
     }
 
-    public ItemSet getBody() {
+    ItemSet getBody() {
         return body;
     }
 
-    public ItemSet getHead() {
+    ItemSet getHead() {
         return head;
     }
 
-    public Double getConfidence() {
+    Double getConfidence() {
         return confidence;
     }
 
-    public Rule setConfidence(Double confidence) {
+    Rule setConfidence(Double confidence) {
         this.confidence = confidence;
         return this;
     }

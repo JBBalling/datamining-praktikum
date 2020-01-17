@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 
 /**
  * sparkSubmit --class testat02.APriori.APriori target/data-mining-praktikum-1.0-SNAPSHOT.jar
- * ca. 30 min
+ * ca. 22 min
  */
 public class APriori implements java.io.Serializable {
 
@@ -72,16 +72,13 @@ public class APriori implements java.io.Serializable {
         Broadcast<Long> amountOfSessions = jsc.broadcast(lines.count());
 
         JavaRDD<ItemSet> sessions = lines.map(s -> {
-            List<String> list = Arrays.asList(s.split("\\s+"))
-                    .stream()
-                    .distinct()
-                    .collect(Collectors.toList());
+            List<String> list = Arrays.asList(s.split("\\s+"));
             return new ItemSet(list);
         });
 
         // alle vorkommenden 1-elementigen Mengen (mit Duplikaten)
         JavaRDD<ItemSet> allCandidatesWith1Element = sessions.flatMap(s -> {
-            ArrayList<ItemSet> list = new ArrayList<ItemSet>();
+            List<ItemSet> list = new ArrayList<ItemSet>();
             for (String string : s.getItems()) {
                 list.add(new ItemSet(string));
             }
@@ -112,7 +109,7 @@ public class APriori implements java.io.Serializable {
         JavaPairRDD<ItemSet, Double> frequentSetsWith2Elements = candidatesWith2Elements.cartesian(sessions)
                 .flatMapToPair(c -> { // ca. 800 mio. Mal :(
                     if (c._2.containsAllElements(c._1)) {
-                        ArrayList<Tuple2<ItemSet, Integer>> list =  new ArrayList<Tuple2<ItemSet, Integer>>();
+                        List<Tuple2<ItemSet, Integer>> list =  new ArrayList<Tuple2<ItemSet, Integer>>();
                         list.add(new Tuple2<ItemSet, Integer>(c._1, 1));
                         return list.iterator();
                     }
@@ -153,7 +150,7 @@ public class APriori implements java.io.Serializable {
         JavaPairRDD<ItemSet, Double> frequentSetsWith3Elements = candidatesWith3Elements.cartesian(sessions)
                 .flatMapToPair(c -> {
                     if (c._2.containsAllElements(c._1)) {
-                        ArrayList<Tuple2<ItemSet, Integer>> list =  new ArrayList<Tuple2<ItemSet, Integer>>();
+                        List<Tuple2<ItemSet, Integer>> list =  new ArrayList<Tuple2<ItemSet, Integer>>();
                         list.add(new Tuple2<ItemSet, Integer>(c._1, 1));
                         return list.iterator();
                     }
@@ -174,7 +171,7 @@ public class APriori implements java.io.Serializable {
         // alle Regeln mit Konfidenz berechen:
         JavaPairRDD<Double, Rule> allRulesWithConfidence = frequentSetsWith2Elements.union(frequentSetsWith3Elements)
                 .flatMap(r -> {
-                    ArrayList<Tuple2<Tuple2<ItemSet, Double>, Rule>> list = new ArrayList<>(); // ((withJ, SupportWithJ), Rule)
+                    List<Tuple2<Tuple2<ItemSet, Double>, Rule>> list = new ArrayList<>(); // ((withJ, SupportWithJ), Rule)
                     for (Rule rule : r._1.generateRules()) {
                         list.add(new Tuple2<Tuple2<ItemSet, Double>, Rule>(r, rule));
                     }
@@ -183,7 +180,7 @@ public class APriori implements java.io.Serializable {
                 .cartesian(sessions)
                 .flatMapToPair(x -> {
                     if (x._2.containsAllElements(x._1._2.getBody())) {
-                        ArrayList<Tuple2<Tuple2<Rule, Double>, Integer>> list =  new ArrayList<Tuple2<Tuple2<Rule, Double>, Integer>>();
+                        List<Tuple2<Tuple2<Rule, Double>, Integer>> list =  new ArrayList<Tuple2<Tuple2<Rule, Double>, Integer>>();
                         list.add(new Tuple2<Tuple2<Rule, Double>, Integer>(new Tuple2<Rule, Double>(x._1._2, x._1._1._2), 1));
                         return list.iterator();
                     }
@@ -216,8 +213,6 @@ public class APriori implements java.io.Serializable {
         for (Tuple2 t : allRulesWithConfidence.collect()) {
             System.out.println(t._2);
         }
-
-        System.out.println(allRulesWithConfidence.count()); // 10
 
     }
 
