@@ -27,3 +27,6 @@ hs_err_pid*
 
 # Target Ordner
 target/
+
+# Projekt
+output/
