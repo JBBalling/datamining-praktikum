@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * sparkSubmit --class testat02.APriori.APriori target/data-mining-praktikum-1.0-SNAPSHOT.jar
  * ca. 30 min
  */
-public class APriori {
+public class APriori implements java.io.Serializable {
 
     private JavaSparkContext jsc;
     private String path = "daten/browsing.txt";
