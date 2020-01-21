@@ -34,8 +34,8 @@ public class APriori implements java.io.Serializable {
     private String path = "daten/browsing.txt";
     private String output = "output/testat02/APriori";
 
-    private final double minSupport = 0.01;
-    private final double minConfidence = 0.8;
+    private double minSupport = 0.01;
+    private double minConfidence = 0.8;
 
     public static void main(String[] args) throws Exception {
 
@@ -67,7 +67,7 @@ public class APriori implements java.io.Serializable {
         Broadcast<Double> confidence = jsc.broadcast(minConfidence);
         Broadcast<Double> support = jsc.broadcast(minSupport);
 
-        JavaRDD<String> lines = jsc.textFile(path); // .sample(false, 0.1, 11L); // sample nur zum test
+        JavaRDD<String> lines = jsc.textFile(path);
 
         Broadcast<Long> amountOfSessions = jsc.broadcast(lines.count());
 
@@ -107,13 +107,11 @@ public class APriori implements java.io.Serializable {
 
         // alle häufigen 2-elementigen Mengen TODO zu langsam?
         JavaPairRDD<ItemSet, Double> frequentSetsWith2Elements = candidatesWith2Elements.cartesian(sessions)
-                .flatMapToPair(c -> { // ca. 800 mio. Mal :(
+                .mapToPair(c -> { // ca. 800 mio. Mal :(
                     if (c._2.containsAllElements(c._1)) {
-                        List<Tuple2<ItemSet, Integer>> list =  new ArrayList<Tuple2<ItemSet, Integer>>();
-                        list.add(new Tuple2<ItemSet, Integer>(c._1, 1));
-                        return list.iterator();
+                        return new Tuple2<ItemSet, Integer>(c._1, 1);
                     }
-                    return new ArrayList<Tuple2<ItemSet, Integer>>().iterator();
+                    return new Tuple2<ItemSet, Integer>(c._1, 0);
                 })
                 .reduceByKey((n1, n2) -> n1 + n2)
                 .mapToPair(p -> new Tuple2<ItemSet, Double>(p._1, ((double) p._2 / amountOfSessions.value())))
@@ -129,12 +127,6 @@ public class APriori implements java.io.Serializable {
             stringBuilder.append(is._2);
             stringBuilder.append("\n");
         }
-        // mit support !!!
-        try {
-            Files.write(Paths.get(output + "/frequentPairs.txt"), stringBuilder.toString().getBytes());
-        } catch(Exception e) {
-
-        }
 
         // txt einlesen
 
@@ -148,13 +140,11 @@ public class APriori implements java.io.Serializable {
 
         // alle häufigen 3-elementigen Mengen TODO zu langsam?
         JavaPairRDD<ItemSet, Double> frequentSetsWith3Elements = candidatesWith3Elements.cartesian(sessions)
-                .flatMapToPair(c -> {
+                .mapToPair(c -> {
                     if (c._2.containsAllElements(c._1)) {
-                        List<Tuple2<ItemSet, Integer>> list =  new ArrayList<Tuple2<ItemSet, Integer>>();
-                        list.add(new Tuple2<ItemSet, Integer>(c._1, 1));
-                        return list.iterator();
+                        return new Tuple2<ItemSet, Integer>(c._1, 1);
                     }
-                    return new ArrayList<Tuple2<ItemSet, Integer>>().iterator();
+                    return new Tuple2<ItemSet, Integer>(c._1, 0);
                 })
                 .reduceByKey((n1, n2) -> n1 + n2)
                 .mapToPair(p -> new Tuple2<ItemSet, Double>(p._1, ((double) p._2 / amountOfSessions.value())))
