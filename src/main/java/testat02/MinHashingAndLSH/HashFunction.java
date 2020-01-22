@@ -1,11 +1,16 @@
 package testat02.MinHashingAndLSH;
 
+import org.apache.spark.api.java.JavaPairRDD;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
 public class HashFunction implements java.io.Serializable {
 
     private int a;
     private int b;
+
     private int primeNumber = 131071;
     private int minHashSignatureSize = 1000;
 
