@@ -1,9 +1,11 @@
 package testat02.APriori;
 
+import org.apache.commons.collections.CollectionUtils;
 import scala.Tuple2;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;

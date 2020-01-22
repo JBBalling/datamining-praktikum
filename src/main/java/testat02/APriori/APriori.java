@@ -1,5 +1,6 @@
 package testat02.APriori;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.iterators.ArrayListIterator;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -20,13 +21,14 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * sparkSubmit --class testat02.APriori.APriori target/data-mining-praktikum-1.0-SNAPSHOT.jar
- * ca. 22 min
  */
 public class APriori implements java.io.Serializable {
 
@@ -41,6 +43,7 @@ public class APriori implements java.io.Serializable {
 
         APriori ap = new APriori();
         ap.aPriori();
+        // ap.loesungJulian();
         // ap.associationRules();
         // ap.test();
         ap.jsc.stop();
@@ -76,6 +79,8 @@ public class APriori implements java.io.Serializable {
             return new ItemSet(list);
         });
 
+        Broadcast<List<ItemSet>> sessionsBroadcast = jsc.broadcast(sessions.collect());
+
         // alle vorkommenden 1-elementigen Mengen (mit Duplikaten)
         JavaRDD<ItemSet> allCandidatesWith1Element = sessions.flatMap(s -> {
             List<ItemSet> list = new ArrayList<ItemSet>();
@@ -105,30 +110,21 @@ public class APriori implements java.io.Serializable {
                 });
         System.out.println("C2: " + candidatesWith2Elements.count());
 
-        // alle häufigen 2-elementigen Mengen TODO zu langsam?
-        JavaPairRDD<ItemSet, Double> frequentSetsWith2Elements = candidatesWith2Elements.cartesian(sessions)
-                .mapToPair(c -> { // ca. 800 mio. Mal :(
-                    if (c._2.containsAllElements(c._1)) {
-                        return new Tuple2<ItemSet, Integer>(c._1, 1);
+        // alle häufigen 2-elementigen Mengen
+        JavaPairRDD<ItemSet, Double> frequentSetsWith2Elements = candidatesWith2Elements.flatMapToPair(c -> {
+                    List<Tuple2<ItemSet, Integer>> list = new ArrayList<Tuple2<ItemSet, Integer>>();
+                    for (ItemSet session : sessionsBroadcast.value()) {
+                        if (session.containsAllElements(c)) {
+                            list.add(new Tuple2<ItemSet, Integer>(c, 1));
+                        }
                     }
-                    return new Tuple2<ItemSet, Integer>(c._1, 0);
+                    return list.iterator();
                 })
                 .reduceByKey((n1, n2) -> n1 + n2)
                 .mapToPair(p -> new Tuple2<ItemSet, Double>(p._1, ((double) p._2 / amountOfSessions.value())))
                 .filter(x -> x._2 >= support.value());
         frequentSetsWith2Elements.cache();
         System.out.println("L2: " + frequentSetsWith2Elements.count()); // 110
-
-        // als txt zwischenspeichern:
-        StringBuilder stringBuilder = new StringBuilder();
-        for (Tuple2<ItemSet, Double> is : frequentSetsWith2Elements.collect()) {
-            stringBuilder.append(is._1.toString());
-            stringBuilder.append(", ");
-            stringBuilder.append(is._2);
-            stringBuilder.append("\n");
-        }
-
-        // txt einlesen
 
         // alle 3-elementigen Kandidaten
         JavaRDD<ItemSet> candidatesWith3Elements = frequentSetsWith2Elements.zipWithIndex()
@@ -138,13 +134,15 @@ public class APriori implements java.io.Serializable {
                 .distinct();
         System.out.println("C3: " + candidatesWith3Elements.count());
 
-        // alle häufigen 3-elementigen Mengen TODO zu langsam?
-        JavaPairRDD<ItemSet, Double> frequentSetsWith3Elements = candidatesWith3Elements.cartesian(sessions)
-                .mapToPair(c -> {
-                    if (c._2.containsAllElements(c._1)) {
-                        return new Tuple2<ItemSet, Integer>(c._1, 1);
+        // alle häufigen 3-elementigen Mengen
+        JavaPairRDD<ItemSet, Double> frequentSetsWith3Elements = candidatesWith3Elements.flatMapToPair(c -> {
+                    List<Tuple2<ItemSet, Integer>> list = new ArrayList<Tuple2<ItemSet, Integer>>();
+                    for (ItemSet session : sessionsBroadcast.value()) {
+                        if (session.containsAllElements(c)) {
+                            list.add(new Tuple2<ItemSet, Integer>(c, 1));
+                        }
                     }
-                    return new Tuple2<ItemSet, Integer>(c._1, 0);
+                    return list.iterator();
                 })
                 .reduceByKey((n1, n2) -> n1 + n2)
                 .mapToPair(p -> new Tuple2<ItemSet, Double>(p._1, ((double) p._2 / amountOfSessions.value())))
@@ -186,19 +184,6 @@ public class APriori implements java.io.Serializable {
                 .filter(f -> f._1 >= confidence.value())
                 .sortByKey(false);
 
-        /**
-         * - unterschiedliche Reihenfolgen in ItemSets?
-         * - duplizierte Tripel
-         * - hashCode / equals in Rule?
-         * - flatMaps für Häufigkeit durch map auf 0 und 1 ersetzen? --> Schneller, da es in den Reducern durchgeführt werden kann?
-         *
-         * Support der Tripel ist definitiv noch falsch
-         * Support ist doppelt so hoch wie soll
-         *
-         * Idee für Debugging: häufige Paare (L2) in txt-Datei zwischenspeichern und auslesen, damit der Schritt nicht
-         * immer wieder durchgeführt werden muss
-         */
-
         // alle Regeln ausgeben
         for (Tuple2 t : allRulesWithConfidence.collect()) {
             System.out.println(t._2);
@@ -206,33 +191,41 @@ public class APriori implements java.io.Serializable {
 
     }
 
-    /*
-     * Bestimmt alle ItemSets die häufig vorkommen
-     * Nicht als Funktion benutztbar (not serializable)
-     */
-    /**
-    private void getAllFrequentItemSets(JavaRDD<ItemSet> allSessions, JavaRDD<ItemSet> input, int totalAmountOfSessions) {
+    private JavaPairRDD<ItemSet, Double> getFrequentItemSets(JavaRDD<ItemSet> input, List<ItemSet> sessions, int amountOfSessions, double support) {
 
-        JavaPairRDD<ItemSet, Integer> allCombinations = input.cartesian(sessions).flatMapToPair(c -> {
-            if (c._2.containsAllElements(c._1)) {
-                ArrayList<Tuple2<ItemSet, Integer>> list =  new ArrayList<Tuple2<ItemSet, Integer>>();
-                list.add(new Tuple2<ItemSet, Integer>(c._1, 1));
-                return list.iterator();
+        return input.flatMapToPair(c -> {
+            List<Tuple2<ItemSet, Integer>> list = new ArrayList<Tuple2<ItemSet, Integer>>();
+            for (ItemSet session : sessions) {
+                if (session.containsAllElements(c)) {
+                    list.add(new Tuple2<ItemSet, Integer>(c, 1));
+                }
             }
-            return new ArrayList<Tuple2<ItemSet, Integer>>().iterator();
-        });
+            return list.iterator();
+        })
+                .reduceByKey((n1, n2) -> n1 + n2)
+                .mapToPair(p -> new Tuple2<ItemSet, Double>(p._1, ((double) p._2 / amountOfSessions)))
+                .filter(x -> x._2 >= support);
 
-        JavaRDD<ItemSet> frequentItems = allCombinations.reduceByKey((n1, n2) -> n1 + n2)
-                .filter(x -> (x._2 / amountOfSessions.value()) >= support.value())
-                .map(y -> y._1);
+        /*
+        komischerweise viel langsamer:
+                return input.cartesian(sessions)
+                .mapToPair(c -> {
+                    if (c._2.containsAllElements(c._1)) {
+                        return new Tuple2<ItemSet, Integer>(c._1, 1);
+                    }
+                    return new Tuple2<ItemSet, Integer>(c._1, 0);
+                })
+                .reduceByKey((n1, n2) -> n1 + n2)
+                .mapToPair(p -> new Tuple2<ItemSet, Double>(p._1, ((double) p._2 / amountOfSessions)))
+                .filter(x -> x._2 >= support);
+         */
 
-    }*/
+    }
 
     /**
      * Vorgegebebe Umsetzung zum Vergleichen:
      */
     private void associationRules() {
-
         JavaRDD<String> data = jsc.textFile(path);
         JavaRDD<List<String>> transactions = data.map(line -> Arrays.asList(line.split("\\s+"))
                 .stream()
@@ -251,42 +244,6 @@ public class APriori implements java.io.Serializable {
         for (AssociationRules.Rule<String> rule : model.generateAssociationRules(minConfidence).toJavaRDD().collect()) {
             System.out.println(rule.javaAntecedent() + " => " + rule.javaConsequent() + ", " + rule.confidence());
         }
-
-    }
-
-    /**
-     * Zum Testen:
-     */
-    private void test() {
-        JavaRDD<String> test1 = jsc.parallelize(Arrays.asList("a", "b", "c", "d", "e", "f", "g"));
-        JavaRDD<String> test2 = jsc.parallelize(Arrays.asList("x", "y", "z"));
-        // test1.cartesian(test2).foreach(s -> System.out.println(s));
-
-
-        JavaPairRDD<String, Integer> test3 = test1.flatMapToPair(x -> {
-            if (x.equals("a") || x.equals("e") || x.equals("g")) {
-                ArrayList<Tuple2<String, Integer>> al =  new ArrayList<Tuple2<String, Integer>>();
-                al.add(new Tuple2<String, Integer>(x, 1));
-                return al.iterator();
-            }
-            return new ArrayList<Tuple2<String, Integer>>().iterator();
-        });
-
-        test3.foreach(s -> System.out.println(s));
-
-
-        JavaRDD<ItemSet> frequentSetsWithElements = jsc.parallelize(
-                Arrays.asList(
-                        new ItemSet[]{
-                                new ItemSet(Arrays.asList(new String[]{"1", "2", "3"})),
-                                new ItemSet(Arrays.asList(new String[]{"10", "20", "30"})),
-                                new ItemSet(Arrays.asList(new String[]{"100", "200", "300"})),
-                                new ItemSet(Arrays.asList(new String[]{"a", "b"})),
-                                new ItemSet(Arrays.asList(new String[]{"x", "y"})),
-                                new ItemSet(Arrays.asList(new String[]{"t", "u"}))
-                        }
-                )
-        );
     }
 
 }
