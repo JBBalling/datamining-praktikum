@@ -39,6 +39,19 @@ public class LSH implements java.io.Serializable {
         lsh.main();
     }
 
+    static double jaccardDistance(List<Integer> list1, List<Integer> list2) throws Exception {
+        if (list1.size() != list2.size()) {
+            throw new Exception();
+        }
+        int notSame = 0;
+        for (int i = 0; i < list1.size(); i++) {
+            if (!list1.get(i).equals(list2.get(i))) {
+                notSame++;
+            }
+        }
+        return (double) notSame / (double) list1.size();
+    }
+
     void main() {
         conf = new SparkConf().set("spark.executor.memory","8G");
         jsc = new JavaSparkContext(conf);
@@ -147,40 +160,28 @@ public class LSH implements java.io.Serializable {
                     return list.iterator();
                 });
 
-        List<List<Integer>> oneHotList = new ArrayList<>((int) oneHot.count() + 1);
-        oneHotList.add(0, new ArrayList<Integer>());
-        for (Tuple2<Integer, List<Integer>> tuple : oneHot.collect()) {
-            oneHotList.add(tuple._1, tuple._2);
+        List<List<Integer>> oneHotList = new ArrayList<>((int) oneHot.count());
+        for (Tuple2<Integer, List<Integer>> tuple : oneHot.sortByKey(true).collect()) {
+            oneHotList.add(tuple._1 - 1, tuple._2);
         }
         Broadcast<List<List<Integer>>> oneHotListBroadcast = jsc.broadcast(oneHotList);
 
-        List<List<Integer>> signaturesList = new ArrayList<>((int) signatures.count() + 1);
-        signaturesList.add(0, new ArrayList<Integer>());
-        for (Tuple2<Integer, List<Integer>> tuple : signatures.collect()) {
-            signaturesList.add(tuple._1, tuple._2);
+        List<List<Integer>> signaturesList = new ArrayList<>((int) signatures.count());
+        for (Tuple2<Integer, List<Integer>> tuple : signatures.sortByKey(true).collect()) {
+            signaturesList.add(tuple._1 - 1, tuple._2);
         }
         Broadcast<List<List<Integer>>> signaturesListBroadcast = jsc.broadcast(signaturesList);
 
         Broadcast<Double> minSimilarityBroadcast = jsc.broadcast(minSimilarity);
 
         JavaPairRDD<ArrayList<Integer>, Tuple2<Double, Double>> pairsOneHot = similiarDocuments.mapToPair(p -> {
-            double jaccard = jaccardDistance(oneHotListBroadcast.value().get(p.get(0)), oneHotListBroadcast.value().get(1));
-            double minHash = jaccardDistance(signaturesListBroadcast.value().get(p.get(0)), signaturesListBroadcast.value().get(1));
+            double jaccard = jaccardDistance(oneHotListBroadcast.value().get(p.get(0) - 1), oneHotListBroadcast.value().get(p.get(1) - 1));
+            double minHash = jaccardDistance(signaturesListBroadcast.value().get(p.get(0) - 1), signaturesListBroadcast.value().get(p.get(1) - 1));
             return new Tuple2<ArrayList<Integer>, Tuple2<Double, Double>>(p, new Tuple2<Double, Double>(jaccard, minHash));
-        }).filter(x -> x._2._1 > minSimilarityBroadcast.value());
+        }); //.filter(x -> x._2._1 > minSimilarityBroadcast.value());
 
         pairsOneHot.foreach(s -> System.out.println(s));
 
-    }
-
-    double jaccardDistance(List<Integer> list1, List<Integer> list2) {
-        int notSame = 0;
-        for (int i = 0; i < list1.size(); i++) {
-            if (!list1.get(i).equals(list2.get(i))) {
-                notSame++;
-            }
-        }
-        return (double) notSame / list1.size();
     }
 
     static String arrayAsString(int[] arr) {
