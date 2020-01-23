@@ -40,8 +40,8 @@ public class APriori implements java.io.Serializable {
 
     public static void main(String[] args) throws Exception {
         APriori ap = new APriori();
+        ap.associationRules();
         ap.aPriori();
-        // ap.associationRules();
         ap.jsc.stop();
     }
 
@@ -59,6 +59,8 @@ public class APriori implements java.io.Serializable {
      * - Confidence: sup(i_1, i_2, ..., i_k, j) / sup(i_1, i_2, ..., i_k)
      */
     private void aPriori() {
+        System.out.println("### Own Implementation ###");
+        System.out.println();
 
         Broadcast<Double> confidence = jsc.broadcast(minConfidence);
         Broadcast<Double> support = jsc.broadcast(minSupport);
@@ -123,6 +125,7 @@ public class APriori implements java.io.Serializable {
 
         // häufige Mengen ausgeben:
         System.out.println();
+        System.out.println("Frequent Pairs & Triples:");
         frequentSetsWith2Elements.foreach(s -> System.out.println(s));
         frequentSetsWith3Elements.foreach(s -> System.out.println(s));
 
@@ -135,14 +138,14 @@ public class APriori implements java.io.Serializable {
                     }
                     return list.iterator();
                 })
-                .cartesian(sessions) // TODO durch for-Schleife ersetzen?
                 .flatMapToPair(x -> {
-                    if (x._2.containsAllElements(x._1._2.getBody())) {
-                        List<Tuple2<Tuple2<Rule, Double>, Integer>> list =  new ArrayList<Tuple2<Tuple2<Rule, Double>, Integer>>();
-                        list.add(new Tuple2<Tuple2<Rule, Double>, Integer>(new Tuple2<Rule, Double>(x._1._2, x._1._1._2), 1));
-                        return list.iterator();
+                    List<Tuple2<Tuple2<Rule, Double>, Integer>> list = new ArrayList<Tuple2<Tuple2<Rule, Double>, Integer>>();
+                    for (ItemSet session : sessionsBroadcast.value()) {
+                        if (session.containsAllElements(x._2.getBody())) {
+                            list.add(new Tuple2<Tuple2<Rule, Double>, Integer>(new Tuple2<Rule, Double>(x._2, x._1._2), 1));
+                        }
                     }
-                    return new ArrayList<Tuple2<Tuple2<Rule, Double>, Integer>>().iterator();
+                    return list.iterator();
                 })
                 .reduceByKey((n1, n2) -> n1 + n2)
                 .mapToPair(t -> {
@@ -198,6 +201,7 @@ public class APriori implements java.io.Serializable {
      * Vorgegebebe Umsetzung zum Vergleichen:
      */
     private void associationRules() {
+        System.out.println("### Provided Implementation ###");
         JavaRDD<String> data = jsc.textFile(path);
         JavaRDD<List<String>> transactions = data.map(line -> Arrays.asList(line.split("\\s+"))
                 .stream()
@@ -209,13 +213,21 @@ public class APriori implements java.io.Serializable {
                 .setNumPartitions(10);
         FPGrowthModel<String> model = fpg.run(transactions);
 
+        System.out.println();
+        System.out.println("Frequent Pairs & Triples:");
         for (FPGrowth.FreqItemset<String> itemset: model.freqItemsets().toJavaRDD().collect()) {
-            System.out.println("[" + itemset.javaItems() + "], " + itemset.freq());
+            if (itemset.javaItems().size() >= 2) {
+                System.out.println("[" + itemset.javaItems() + "], " + itemset.freq());
+            }
         }
 
+        System.out.println();
+        System.out.println("Rules:");
         for (AssociationRules.Rule<String> rule : model.generateAssociationRules(minConfidence).toJavaRDD().collect()) {
             System.out.println(rule.javaAntecedent() + " => " + rule.javaConsequent() + ", " + rule.confidence());
         }
+
+        System.out.println();
     }
 
 }
