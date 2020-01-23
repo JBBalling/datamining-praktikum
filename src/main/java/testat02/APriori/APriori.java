@@ -181,20 +181,6 @@ public class APriori implements java.io.Serializable {
                 .mapToPair(p -> new Tuple2<ItemSet, Double>(p._1, ((double) p._2 / amountOfSessions.value())))
                 .filter(x -> x._2 >= support.value());
 
-        /*
-        komischerweise viel langsamer:
-                return input.cartesian(sessions)
-                .mapToPair(c -> {
-                    if (c._2.containsAllElements(c._1)) {
-                        return new Tuple2<ItemSet, Integer>(c._1, 1);
-                    }
-                    return new Tuple2<ItemSet, Integer>(c._1, 0);
-                })
-                .reduceByKey((n1, n2) -> n1 + n2)
-                .mapToPair(p -> new Tuple2<ItemSet, Double>(p._1, ((double) p._2 / amountOfSessions.value())))
-                .filter(x -> x._2 >= support.value());
-         */
-
     }
 
     /**
