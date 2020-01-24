@@ -6,6 +6,7 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.mllib.evaluation.RegressionMetrics;
 import scala.Tuple2;
 import com.google.common.hash.*;
 
@@ -20,12 +21,13 @@ public class LSH implements java.io.Serializable {
     private SparkConf conf;
     private JavaSparkContext jsc;
 
-    static int numberHashFunctions = 100;
+    static int numberHashFunctions = 500;
     private int k = 3;
-    private String path = "/Users/jakobschwerter/Development/data-mining-praktikum/daten/imdb.txt";
-    private double minSimilarity = 0.8;
-    private int bands = 20;
+    private int bands = 250;
     private int rows = numberHashFunctions / bands;
+    private double minSimilarity = 0.8;
+
+    private String path = "/Users/jakobschwerter/Development/data-mining-praktikum/daten/imdb2.txt";
 
     public static void main(String[] args) {
         LSH lsh = new LSH();
@@ -37,6 +39,23 @@ public class LSH implements java.io.Serializable {
     }
 
     static double jaccardSimilarity(List<Integer> list1, List<Integer> list2) throws Exception {
+        if (list1.size() != list2.size()) {
+            throw new Exception();
+        }
+        int same = 0;
+        int allWithOne = 0;
+        for (int i = 0; i < list1.size(); i++) {
+            if (list1.get(i) == 1 && list2.get(i) == 1) {
+                same++;
+            }
+            if (list1.get(i) == 1 || list2.get(i) == 1) {
+                allWithOne++;
+            }
+        }
+        return (double) same / (double) allWithOne;
+    }
+
+    static double jaccardSimilarity2(List<Integer> list1, List<Integer> list2) throws Exception {
         if (list1.size() != list2.size()) {
             throw new Exception();
         }
@@ -100,6 +119,8 @@ public class LSH implements java.io.Serializable {
 
         Broadcast<List<Tuple2<Integer, List<Integer>>>> permutationsBroadcast = jsc.broadcast(permutations.sortByKey(true).collect());
 
+        /* reihenfolge der listen gleich? */
+
         JavaPairRDD<Integer, List<Integer>> signatures = oneHot.flatMapToPair(m -> { // (C_x, (h_1_1, h_2_1, ..., h_x_1))
                     List<Tuple2<Tuple2<Integer, Integer>, List<Integer>>> list = new ArrayList<>(); // ((C_x, 0/1), (h1, h2, h3, ...))
                     for (int i = 0; i < m._2.size(); i++) {
@@ -121,6 +142,8 @@ public class LSH implements java.io.Serializable {
                     }
                     return list;
                 });
+
+        signatures.foreach(s -> System.out.println(s));
 
         Broadcast<Integer> bandsBroadcast = jsc.broadcast(bands);
         Broadcast<Integer> rowsBroadcast = jsc.broadcast(rows);
@@ -173,11 +196,16 @@ public class LSH implements java.io.Serializable {
 
         JavaPairRDD<ArrayList<Integer>, Tuple2<Double, Double>> pairsOneHot = similiarDocuments.mapToPair(p -> {
             double jaccard = jaccardSimilarity(oneHotListBroadcast.value().get(p.get(0) - 1), oneHotListBroadcast.value().get(p.get(1) - 1));
-            double minHash = jaccardSimilarity(signaturesListBroadcast.value().get(p.get(0) - 1), signaturesListBroadcast.value().get(p.get(1) - 1)); // distance?
+            double minHash = jaccardSimilarity2(signaturesListBroadcast.value().get(p.get(0) - 1), signaturesListBroadcast.value().get(p.get(1) - 1)); // distance?
             return new Tuple2<ArrayList<Integer>, Tuple2<Double, Double>>(p, new Tuple2<Double, Double>(jaccard, minHash));
         }); //.filter(x -> x._2._1 > minSimilarityBroadcast.value());
 
         pairsOneHot.foreach(s -> System.out.println(s));
+
+        JavaPairRDD<Object, Object> rmse = pairsOneHot.mapToPair(x -> new Tuple2<Object, Object>(x._2._1, x._2._2));
+
+        // RegressionMetrics metrics = new RegressionMetrics(rmse.rdd());
+        // System.out.println(metrics.rootMeanSquaredError());
 
         System.out.println(pairsOneHot.count());
         System.out.println(pairsOneHot.filter(x -> x._2._1 > minSimilarityBroadcast.value()).count());
