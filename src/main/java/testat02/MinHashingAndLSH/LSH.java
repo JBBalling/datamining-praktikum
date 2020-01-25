@@ -21,21 +21,18 @@ public class LSH implements java.io.Serializable {
     private SparkConf conf;
     private JavaSparkContext jsc;
 
-    static int numberHashFunctions = 500;
+    static int numberHashFunctions = 1000;
     private int k = 3;
     private int bands = 250;
     private int rows = numberHashFunctions / bands;
     private double minSimilarity = 0.8;
 
-    private String path = "/Users/jakobschwerter/Development/data-mining-praktikum/daten/imdb2.txt";
+    private String path = "/Users/jakobschwerter/Development/data-mining-praktikum/daten/imdb.txt";
 
     public static void main(String[] args) {
         LSH lsh = new LSH();
         lsh.main();
-    }
-
-    static double jaccardDistance(List<Integer> list1, List<Integer> list2) throws Exception {
-        return 1 - jaccardDistance(list1, list2);
+        lsh.jsc.stop();
     }
 
     static double jaccardSimilarity(List<Integer> list1, List<Integer> list2) throws Exception {
@@ -69,19 +66,25 @@ public class LSH implements java.io.Serializable {
     }
 
     void main() {
-        conf = new SparkConf().set("spark.executor.memory","8G");
+
+        // sparkSubmit --conf "spark.driver.extraJavaOptions=-Xms4g" --executor-memory 4g --driver-memory 4g --class testat02.MinHashingAndLSH.LSH target/data-mining-praktikum-1.0-SNAPSHOT.jar
+
+        conf = new SparkConf().set("spark.executor.memory", "8G");
         jsc = new JavaSparkContext(conf);
         Broadcast<Integer> shingleSize = jsc.broadcast(k);
-        JavaRDD<Review> lines = jsc.parallelize(jsc.textFile(path).take(1000)) // jsc.textFile(path) für alle Zeilen
+
+        // Daten einlesen
+        JavaRDD<Review> lines = jsc.parallelize(jsc.textFile(path).take(5000)) // jsc.textFile(path) für alle Zeilen
                 .map(l -> new Review(l, shingleSize.value()));
 
+        // alle Shingles aus allen Dokumenten
         JavaRDD<String> allShingles = lines.flatMapToPair(l -> {
             List<Tuple2<String, Integer>> list = new ArrayList<>();
             for (String string : l.getShingles()) {
                 list.add(new Tuple2<String, Integer>(string, 1));
             }
             return list.iterator();
-        }).reduceByKey((n1, n2) -> n1 + n2)
+        }).reduceByKey((n1, n2) -> n1 + n2) // nur Shingles, die in mindestens 2 Dokumenten vorkommen
                 .filter(f -> f._2 > 1)
                 .map(m -> m._1);
 
@@ -91,6 +94,7 @@ public class LSH implements java.io.Serializable {
         tempArray = shingleList.toArray(tempArray);
         Broadcast<String[]> oneHotReference = jsc.broadcast(tempArray);
 
+        // one hot Kodierung
         JavaPairRDD<Integer, List<Integer>> oneHot = lines.mapToPair(l -> {
             List<Integer> oneHotArr = new ArrayList<>(oneHotReference.value().length);
             for (int i = 0; i < oneHotReference.value().length; i++) {
@@ -103,24 +107,49 @@ public class LSH implements java.io.Serializable {
             return new Tuple2<Integer, List<Integer>>(l.getID(), oneHotArr);
         });
 
+        // oneHot.foreach(s -> System.out.println(s));
+
+        // Hashfunktionen für minHash
         HashFunction[] hashFunctions = new HashFunction[numberHashFunctions];
         for (int i = 0; i < hashFunctions.length; i++) {
             hashFunctions[i] = new HashFunction();
         }
         Broadcast<HashFunction[]> hashFunctionsBroadcast = jsc.broadcast(hashFunctions);
 
-        JavaPairRDD<Integer, List<Integer>> permutations = oneHot.mapToPair(m -> {
-            List<Integer> list = new ArrayList<>();
-            for (HashFunction h : hashFunctionsBroadcast.value()) {
-                list.add(h.hash(m._1));
+        // Permutationen
+        List<List<Integer>> permutationsList = new ArrayList<List<Integer>>(); // jede List sind die Hashes einer Zeilennummer
+        for (int i = 0; i < oneHotReference.value().length; i++) {
+            List<Integer> innerList = new ArrayList<>();
+            for (HashFunction h : hashFunctions) {
+                innerList.add(h.hash(i));
             }
-            return new Tuple2<Integer, List<Integer>>(m._1, list);
+            permutationsList.add(innerList);
+        }
+        Broadcast<List<List<Integer>>> permutationsBroadcast = jsc.broadcast(permutationsList);
+
+        /*
+        for (List<Integer> l : permutationsList) {
+            System.out.println(l);
+        }
+        */
+
+        /*
+        JavaPairRDD<Integer, List<List<Integer>>> permutations = oneHot.mapToPair(m -> { // ObjectID, List_Zeilen<List_ZeilenNummerMehrmalGehashed<>>
+            List<List<Integer>> list = new ArrayList<>();
+            for (int i = 0; i < m._2.size(); i++) {
+                List<Integer> innerList = new ArrayList<>();
+                for (HashFunction h : hashFunctionsBroadcast.value()) {
+                    innerList.add(h.hash(i));
+                }
+                list.add(innerList);
+            }
+            return new Tuple2<Integer, List<List<Integer>>>(m._1, list);
         });
+        */
 
-        Broadcast<List<Tuple2<Integer, List<Integer>>>> permutationsBroadcast = jsc.broadcast(permutations.sortByKey(true).collect());
+        // Broadcast<List<Tuple2<Integer, List<Integer>>>> permutationsBroadcast = jsc.broadcast(permutations.sortByKey(true).collect());
 
-        /* reihenfolge der listen gleich? */
-
+        /*
         JavaPairRDD<Integer, List<Integer>> signatures = oneHot.flatMapToPair(m -> { // (C_x, (h_1_1, h_2_1, ..., h_x_1))
                     List<Tuple2<Tuple2<Integer, Integer>, List<Integer>>> list = new ArrayList<>(); // ((C_x, 0/1), (h1, h2, h3, ...))
                     for (int i = 0; i < m._2.size(); i++) {
@@ -141,9 +170,35 @@ public class LSH implements java.io.Serializable {
                         list.add(Math.min(n1.get(i), n2.get(i)));
                     }
                     return list;
-                });
+                });*/
 
-        signatures.foreach(s -> System.out.println(s));
+
+        JavaPairRDD<Integer, List<Integer>> signatures = oneHot.mapToPair(m -> {
+            List<Integer> sig = new ArrayList<>();
+            for (int i = 0; i < hashFunctionsBroadcast.value().length; i++) {
+                sig.add(Integer.MAX_VALUE);
+            }
+            for (int i = 0; i < m._2.size(); i++) {
+                if (m._2.get(i) == 1) {
+                    for (int j = 0; j < permutationsBroadcast.value().get(i).size(); j++) {
+                        if (permutationsBroadcast.value().get(i).get(j) < sig.get(j)) {
+                            sig.set(j, permutationsBroadcast.value().get(i).get(j));
+                        }
+                    }
+                }
+            }
+            return new Tuple2<Integer, List<Integer>>(m._1, sig);
+        });
+
+        // signatures.foreach(s -> System.out.println(s)); // irgendwie fast nur Nullen
+
+
+        /**
+         * ab hier nochmal überprüfen
+         */
+
+
+
 
         Broadcast<Integer> bandsBroadcast = jsc.broadcast(bands);
         Broadcast<Integer> rowsBroadcast = jsc.broadcast(rows);
@@ -178,7 +233,7 @@ public class LSH implements java.io.Serializable {
                         }
                     }
                     return list.iterator();
-                });
+                }).distinct(); // distinct?
 
         List<List<Integer>> oneHotList = new ArrayList<>((int) oneHot.count());
         for (Tuple2<Integer, List<Integer>> tuple : oneHot.sortByKey(true).collect()) {
@@ -196,20 +251,32 @@ public class LSH implements java.io.Serializable {
 
         JavaPairRDD<ArrayList<Integer>, Tuple2<Double, Double>> pairsOneHot = similiarDocuments.mapToPair(p -> {
             double jaccard = jaccardSimilarity(oneHotListBroadcast.value().get(p.get(0) - 1), oneHotListBroadcast.value().get(p.get(1) - 1));
-            double minHash = jaccardSimilarity2(signaturesListBroadcast.value().get(p.get(0) - 1), signaturesListBroadcast.value().get(p.get(1) - 1)); // distance?
+            double minHash = jaccardSimilarity2(signaturesListBroadcast.value().get(p.get(0) - 1), signaturesListBroadcast.value().get(p.get(1) - 1));
             return new Tuple2<ArrayList<Integer>, Tuple2<Double, Double>>(p, new Tuple2<Double, Double>(jaccard, minHash));
-        }); //.filter(x -> x._2._1 > minSimilarityBroadcast.value());
+        }); // .filter(x -> x._2._1 > minSimilarityBroadcast.value());
 
         pairsOneHot.foreach(s -> System.out.println(s));
 
         JavaPairRDD<Object, Object> rmse = pairsOneHot.mapToPair(x -> new Tuple2<Object, Object>(x._2._1, x._2._2));
 
-        // RegressionMetrics metrics = new RegressionMetrics(rmse.rdd());
-        // System.out.println(metrics.rootMeanSquaredError());
+        RegressionMetrics metrics = new RegressionMetrics(rmse.rdd());
+        System.out.println(metrics.rootMeanSquaredError());
 
         System.out.println(pairsOneHot.count());
-        System.out.println(pairsOneHot.filter(x -> x._2._1 > minSimilarityBroadcast.value()).count());
+        pairsOneHot.filter(x -> x._2._1 > minSimilarityBroadcast.value()).foreach(s -> System.out.println(s));
 
+    }
+
+    private JavaPairRDD<Integer, List<Integer>> oneHot() {
+        return null;
+    }
+
+    private JavaPairRDD<Integer, List<Integer>> minHash() {
+        return null;
+    }
+
+    private JavaPairRDD<Integer, List<Integer>> lsh() {
+        return null;
     }
 
 }

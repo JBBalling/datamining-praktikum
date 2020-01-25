@@ -4,6 +4,7 @@ import com.google.common.hash.HashCode;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import org.apache.spark.api.java.JavaPairRDD;
+import scala.Int;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +17,7 @@ public class HashFunction implements java.io.Serializable {
     private int primeNumber = 131071;
     private int minHashSignatureSize = LSH.numberHashFunctions;
     private int randomLowerBound = 1;
-    private int randomUpperBound = 1000; // 100; // TODO beeinflusst Ergebnis ziemlich stark
+    private int randomUpperBound = primeNumber - 1;
 
     HashFunction() {
         a = randomNumber();
@@ -27,8 +28,23 @@ public class HashFunction implements java.io.Serializable {
         return (int) ((Math.random() * (randomUpperBound - randomLowerBound)) + randomLowerBound);
     }
 
+    public static void main(String[] args) {
+        int[] arr = new int[100];
+        for (int i = 0; i < 100000000; i++) {
+            HashFunction h = new HashFunction();
+            //System.out.println(h.hash(i));
+            arr[h.hash(i)] += 1;
+        }
+
+        System.out.println();
+        for (Integer i : arr) {
+            System.out.print(i + ", ");
+        }
+
+    }
+
     int hash(int x) {
-        return ((((a * x) + b) % primeNumber) % minHashSignatureSize);
+        return Math.floorMod(Math.floorMod(((a * x) + b), primeNumber), minHashSignatureSize);
     }
 
 }
