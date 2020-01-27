@@ -11,6 +11,7 @@ import scala.Tuple2;
 import com.google.common.hash.*;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 
@@ -26,7 +27,7 @@ public class LSH implements java.io.Serializable {
 
     static int numberHashFunctions = 1000;
     private int k = 3;
-    private int bands = 25;
+    private int bands = 150;
     private int rows = numberHashFunctions / bands;
     private double minSimilarity = 0.8;
 
@@ -78,7 +79,7 @@ public class LSH implements java.io.Serializable {
         Broadcast<Double> minSimilarityBroadcast = jsc.broadcast(minSimilarity);
 
         // Daten einlesen
-        JavaRDD<Review> lines = jsc.parallelize(jsc.textFile(path).take(1000)) // jsc.textFile(path) für alle Zeilen
+        JavaRDD<Review> lines = jsc.parallelize(jsc.textFile(path).take(10000)) // jsc.textFile(path) für alle Zeilen
                 .map(l -> new Review(l, shingleSize.value()));
 
         // alle Shingles aus allen Dokumenten
@@ -129,7 +130,8 @@ public class LSH implements java.io.Serializable {
         }
         Broadcast<List<List<Integer>>> permutationsBroadcast = jsc.broadcast(permutations);
 
-        JavaPairRDD<Integer, List<Integer>> signatures = oneHot.mapToPair(m -> {
+        // Signaturen
+        JavaPairRDD<Integer, List<Integer>> signatures = oneHot.mapToPair(m -> { // (documentId, (signature))
             List<Integer> sig = new ArrayList<>();
             for (int i = 0; i < hashFunctionsBroadcast.value().length; i++) {
                 sig.add(Integer.MAX_VALUE);
@@ -146,6 +148,7 @@ public class LSH implements java.io.Serializable {
             return new Tuple2<Integer, List<Integer>>(m._1, sig);
         });
 
+        // Auf Bänder aufteilen und hashen
         JavaPairRDD<Tuple2<Integer, HashCode>, Integer> signaturesDividedInBands = signatures.flatMapToPair(f -> {
             List<Tuple2<Tuple2<Integer, HashCode>, Integer>> list = new ArrayList<>();
             int band = 1;
@@ -163,7 +166,7 @@ public class LSH implements java.io.Serializable {
         });
 
         // mögliche Paare aus den Listen bilden
-        JavaPairRDD<Integer, Integer> similiarDocuments = signaturesDividedInBands.groupByKey()
+        JavaPairRDD<Integer, Integer> similiarDocuments = signaturesDividedInBands.groupByKey() // alle wahrscheinlichen Paare als Tupel
                 .map(m -> Lists.newArrayList(m._2))
                 .filter(f -> f.size() > 1)
                 .flatMapToPair(p -> {
@@ -177,44 +180,50 @@ public class LSH implements java.io.Serializable {
                     return list.iterator();
                 }).distinct();
 
-        JavaPairRDD<Integer, Tuple2<List<Integer>, List<Integer>>> oneHotAndSignatures = oneHot.join(signatures); // (id, (oneHot, signature))
+        JavaPairRDD<Integer, Tuple2<List<Integer>, List<Integer>>> oneHotAndSignatures = oneHot.join(signatures); // (id, (oneHot-List, signature-List))
 
-        JavaPairRDD<Integer, Tuple2<Tuple2<Integer, Integer>, Tuple2<List<Integer>, List<Integer>>>> pairsOneHotAndSignaturesTemp = similiarDocuments.flatMapToPair(f -> {
-            List<Tuple2<Integer, Tuple2<Integer, Tuple2<Integer, Integer>>>> list = new ArrayList<>();
-            int randomNumber = new Random().nextInt(Integer.MAX_VALUE);
-            list.add(new Tuple2<Integer, Tuple2<Integer, Tuple2<Integer, Integer>>>(f._1, new Tuple2<Integer, Tuple2<Integer, Integer>>(randomNumber, f)));
-            list.add(new Tuple2<Integer, Tuple2<Integer, Tuple2<Integer, Integer>>>(f._2, new Tuple2<Integer, Tuple2<Integer, Integer>>(randomNumber, f)));
+        // Paare mit zugehörigen OneHot-Kodierungen und Signaturen
+        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>>> pairsOneHotAndSignatures = similiarDocuments.flatMapToPair(f -> { // ((a, b), ((oneHotA, SigA), (oneHotB, SigB)))
+            List<Tuple2<Integer, Tuple2<Integer, Integer>>> list = new ArrayList<>();
+            list.add(new Tuple2<Integer, Tuple2<Integer, Integer>>(f._1, f));
+            list.add(new Tuple2<Integer, Tuple2<Integer, Integer>>(f._2, f));
             return list.iterator();
         })
                 .join(oneHotAndSignatures)
+                .mapToPair(m -> {
+                    Tuple2<Integer, Integer> pair = m._2._1;
+                    Integer documentID = m._1;
+                    Tuple2<List<Integer>, List<Integer>> lists = m._2._2;
+                    return new Tuple2<Tuple2<Integer, Integer>, Tuple2<Integer, Tuple2<List<Integer>, List<Integer>>>>(pair, new Tuple2<Integer, Tuple2<List<Integer>, List<Integer>>>(documentID, lists));
+                })
+                .groupByKey()
                 .mapToPair(p -> {
-                    int randID = p._2._1._1;
-                    Tuple2<Integer, Integer> pair = p._2._1._2;
-                    Tuple2<List<Integer>, List<Integer>> lists = p._2._2;
-                    return new Tuple2<Integer, Tuple2<Tuple2<Integer, Integer>, Tuple2<List<Integer>, List<Integer>>>>(randID, new Tuple2<Tuple2<Integer, Integer>, Tuple2<List<Integer>, List<Integer>>>(pair, lists));
+                    Tuple2<Integer, Integer> pair = p._1;
+                    Iterator<Tuple2<Integer, Tuple2<List<Integer>, List<Integer>>>> iterator = p._2.iterator();
+                    Tuple2<Integer, Tuple2<List<Integer>, List<Integer>>> first = iterator.next();
+                    Tuple2<Integer, Tuple2<List<Integer>, List<Integer>>> second = iterator.next();
+                    Tuple2<List<Integer>, List<Integer>> firstLists = (pair._1 == first._1) ? first._2 : second._2;
+                    Tuple2<List<Integer>, List<Integer>> secondLists = (pair._2 == second._1) ? second._2 : first._2;
+                    return new Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>>>(pair, new Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>>(firstLists, secondLists));
                 });
 
-        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>>> pairsOneHotAndSignatures = pairsOneHotAndSignaturesTemp.join(pairsOneHotAndSignaturesTemp)
-                .mapToPair(x -> {
-                    Tuple2<Integer, Integer> pair = x._2._1._1;
-                    Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>> listsOfBoth = new Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>>(x._2._1._2, x._2._2._2);
-                    return new Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>>>(pair, listsOfBoth);
-                }).distinct();
-
+        // Jaccard- und MinHash-Ähnlichkeiten berechnen
         JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Double, Double>> pairsWithBothSimilarities = pairsOneHotAndSignatures.mapToPair(p -> {
             double jaccard = jaccardSimilarity(p._2._1._1, p._2._2._1);
             double minHash = jaccardSimilarity2(p._2._1._2, p._2._2._2);
             return new Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>(p._1, new Tuple2<Double, Double>(jaccard, minHash));
-        }); // .filter(x -> x._2._1 >= minSimilarityBroadcast.value());
+        }).filter(x -> x._2._2 >= minSimilarityBroadcast.value()); // filtern nach Mindest-MinHash-Ähnlichkeit
 
         pairsWithBothSimilarities.foreach(s -> System.out.println(s));
-        System.out.println("Amount: " + pairsWithBothSimilarities.count());
+        System.out.println("Amount of candidates: " + pairsWithBothSimilarities.count());
 
         JavaPairRDD<Object, Object> rmse = pairsWithBothSimilarities.mapToPair(x -> new Tuple2<Object, Object>(x._2._1, x._2._2));
         RegressionMetrics metrics = new RegressionMetrics(rmse.rdd());
         System.out.println("RMSE: " + metrics.rootMeanSquaredError());
 
-        pairsWithBothSimilarities.filter(x -> x._2._1 >= minSimilarityBroadcast.value()).foreach(s -> System.out.println(s));
+        // System.out.println();
+        // System.out.println("Similar candidates: ");
+        // pairsWithBothSimilarities.filter(x -> x._2._1 >= minSimilarityBroadcast.value()).foreach(s -> System.out.println(s));
 
     }
 
