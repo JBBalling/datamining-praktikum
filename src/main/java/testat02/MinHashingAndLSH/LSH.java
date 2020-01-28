@@ -27,7 +27,7 @@ public class LSH implements java.io.Serializable {
 
     static int numberHashFunctions = 1000;
     private int k = 3;
-    private int bands = 150;
+    private int bands = 10;
     private int rows = numberHashFunctions / bands;
     private double minSimilarity = 0.8;
 
@@ -173,12 +173,16 @@ public class LSH implements java.io.Serializable {
                     List<Tuple2<Integer, Integer>> list = new ArrayList<>();
                     for (int i = 0; i < p.size(); i++) {
                         for (int j = i + 1; j < p.size(); j++) {
-                            Tuple2<Integer, Integer> tuple = new Tuple2<>(p.get(i), p.get(j));
+                            int left = p.get(i) < p.get(j) ? p.get(i) : p.get(j);
+                            int right = p.get(j) > p.get(i) ? p.get(j) : p.get(i);
+                            Tuple2<Integer, Integer> tuple = new Tuple2<>(left, right);
                             list.add(tuple);
                         }
                     }
                     return list.iterator();
                 }).distinct();
+
+        System.out.println("Pairs: " + similiarDocuments.count());
 
         JavaPairRDD<Integer, Tuple2<List<Integer>, List<Integer>>> oneHotAndSignatures = oneHot.join(signatures); // (id, (oneHot-List, signature-List))
 
@@ -212,10 +216,10 @@ public class LSH implements java.io.Serializable {
             double jaccard = jaccardSimilarity(p._2._1._1, p._2._2._1);
             double minHash = jaccardSimilarity2(p._2._1._2, p._2._2._2);
             return new Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>(p._1, new Tuple2<Double, Double>(jaccard, minHash));
-        }).filter(x -> x._2._2 >= minSimilarityBroadcast.value()); // filtern nach Mindest-MinHash-Ähnlichkeit
+        }); // .filter(x -> x._2._1 >= minSimilarityBroadcast.value()); // filtern nach Jaccard-Ähnlichkeit
 
         pairsWithBothSimilarities.foreach(s -> System.out.println(s));
-        System.out.println("Amount of candidates: " + pairsWithBothSimilarities.count());
+        // System.out.println("Amount of candidates: " + pairsWithBothSimilarities.count());
 
         JavaPairRDD<Object, Object> rmse = pairsWithBothSimilarities.mapToPair(x -> new Tuple2<Object, Object>(x._2._1, x._2._2));
         RegressionMetrics metrics = new RegressionMetrics(rmse.rdd());
