@@ -17,36 +17,34 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * sparkSubmit --class testat02.MinHashingAndLSH.LSH target/data-mining-praktikum-1.0-SNAPSHOT.jar
- *
- * sparkSubmit --conf "spark.driver.extraJavaOptions=-Xms4g" --executor-memory 4g --driver-memory 4g --class testat02.MinHashingAndLSH.LSH target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ * sparkSubmit --conf "spark.driver.extraJavaOptions=-Xms4g" --class testat02.MinHashingAndLSH.LSH target/data-mining-praktikum-1.0-SNAPSHOT.jar
  */
 public class LSH implements java.io.Serializable {
 
     private SparkConf conf;
     private JavaSparkContext jsc;
 
-    static int numberHashFunctions = 1000;
-    private int k = 3;
-    private double minSimilarity = 0.8;
+    static final int numberHashFunctions = 1000;
+    private final int k = 3;
+    private final double minSimilarity = 0.8;
 
-    private String path = "/Users/jakobschwerter/Development/data-mining-praktikum/daten/imdb.txt";
+    private final String path = "/Users/jakobschwerter/Development/data-mining-praktikum/daten/imdb.txt";
 
     public static void main(String[] args) {
-        HashSet<Tuple2<Integer, Integer>> pairsSet = new HashSet<>();
+
         LSH lsh = new LSH();
         lsh.conf = new SparkConf().set("spark.executor.memory", "8G");
         lsh.jsc = new JavaSparkContext(lsh.conf);
-        for (int i = 35; i < 500; i = i + 5) { // Julian: 11-34
-            pairsSet.addAll(lsh.main(i));
-            System.out.println("Pairs at " + i + ": " + pairsSet);
-        }
-        System.out.println();
-        System.out.println("Pairs: ");
-        System.out.println(pairsSet);
+
+        getSetPercentage(lsh.findPairs(25), getReferenceSet());
+
         lsh.jsc.stop();
+
     }
 
+    /**
+     * Berechnet die Jaccard-Ähnlichkeit von zwei OneHot-Kodierungen
+     */
     static double jaccardSimilarityForOneHot(Set<Integer> set1, Set<Integer> set2) {
         Set<Integer> both = new HashSet<Integer>(set1);
         both.addAll(set2);
@@ -55,9 +53,12 @@ public class LSH implements java.io.Serializable {
         return (double) intersection.size() / (double) both.size();
     }
 
+    /**
+     * Berechnet die Jaccard-Ähnlichkeit von zwei MinHash-Signaturen
+     */
     static double jaccardSimilarityForMinHash(List<Integer> list1, List<Integer> list2) {
         if (list1.size() != list2.size()) {
-            System.err.println("sizeError");
+            System.err.println("Error: Wrong Size");
         }
         int same = 0;
         for (int i = 0; i < list1.size(); i++) {
@@ -68,14 +69,66 @@ public class LSH implements java.io.Serializable {
         return (double) same / (double) list1.size();
     }
 
-    List<Tuple2<Integer, Integer>> main(int bandsParam) {
+    /**
+     * Gibt ein Set mit allen Paaren zurück
+     */
+    static Set<Tuple2<Integer, Integer>> getReferenceSet() {
+        int[][] referencePairsArray = new int[][]{
+                new int[]{6194,6195},
+                new int[]{6194,6197},
+                new int[]{9755,9772},
+                new int[]{6176,6177},
+                new int[]{7208,7209},
+                new int[]{793,848},
+                new int[]{6227,6229},
+                new int[]{454,458},
+                new int[]{4453,4454},
+                new int[]{2859,2870},
+                new int[]{8199,8209},
+                new int[]{6177,6183},
+                new int[]{1739,1754},
+                new int[]{629,631},
+                new int[]{9385,9386},
+                new int[]{6176,6183},
+                new int[]{9552,9553},
+                new int[]{8392,8403},
+                new int[]{6195,6197},
+                new int[]{7091,7093},
+                new int[]{2733,2734},
+                new int[]{9379,9382}
+        };
+        Set<Tuple2<Integer, Integer>> referencePairs = new HashSet<Tuple2<Integer, Integer>>();
+        for (int[] ref : referencePairsArray) {
+            referencePairs.add(new Tuple2<Integer, Integer>(ref[0], ref[1]));
+        }
+        System.out.println("All pairs (for reference): " + referencePairs);
+        return referencePairs;
+    }
+
+    /**
+     * Berechnet den Anteil der Elemente des referenceSets, der in der Liste list enthalten ist
+     */
+    static double getSetPercentage(List<Tuple2<Integer, Integer>> list, Set<Tuple2<Integer, Integer>> referenceSet) {
+        int amountFound = 0;
+        for (Tuple2<Integer, Integer> tuple : referenceSet) {
+            if (list.contains(tuple)) {
+                amountFound++;
+            }
+        }
+        double result = (double) amountFound / (double) referenceSet.size();
+        System.out.println("Pairs found: " + result + "%");
+        return result;
+    }
+
+    /**
+     * Findet Paare in einem Datensatz und gibt sie als Liste zurück.
+     * Die Anzahl der Bänder werden als Parameter übergeben.
+     */
+    List<Tuple2<Integer, Integer>> findPairs(int bandsParam) {
 
         /**
-         * Referenz-Paare (1-10):
-         * (6194,6195), (6194,6197), (7208,7209), (6176,6177), (9755,9772), (793,848), (6227,6229), (454,458), (4453,4454), (8199,8209), (6177,6183), (1739,1754), (629,631), (9385,9386), (6176,6183), (9552,9553), (6195,6197), (8392,8403), (7091,7093), (2733,2734), (9379,9382)
-         *
-         * Referenz-Paare (11-34):
-         * ...
+         * Referenz-Paare (1-34):
+         * (6194,6195), (6194,6197), (9755,9772), (6176,6177), (7208,7209), (793,848), (6227,6229), (454,458), (4453,4454), (2859,2870), (8199,8209), (6177,6183), (1739,1754), (629,631), (9385,9386), (6176,6183), (9552,9553), (8392,8403), (6195,6197), (7091,7093), (2733,2734), (9379,9382)
          *
          * Referenz-Paare (35-...):
          * ...
@@ -89,6 +142,8 @@ public class LSH implements java.io.Serializable {
         Broadcast<Integer> bandsBroadcast = jsc.broadcast(bands);
         Broadcast<Integer> rowsBroadcast = jsc.broadcast(rows);
         Broadcast<Double> minSimilarityBroadcast = jsc.broadcast(minSimilarity);
+
+        System.out.println("\nBands: " + bandsParam);
 
         // Daten einlesen
         JavaRDD<Review> lines = jsc.parallelize(jsc.textFile(path).take(10000)) // jsc.textFile(path) für alle Zeilen
@@ -192,7 +247,7 @@ public class LSH implements java.io.Serializable {
                     return list.iterator();
                 }).distinct();
 
-        System.out.println("Pairs: " + similiarDocuments.count());
+        System.out.println("Probable pairs: " + similiarDocuments.count());
 
         // Jaccard- und MinHash-Ähnlichkeiten berechnen
         List<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithSimilarities = new ArrayList<>();
@@ -203,67 +258,20 @@ public class LSH implements java.io.Serializable {
         }
         JavaRDD<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithBothSimilarities = jsc.parallelize(pairsWithSimilarities);
 
-        // pairsWithBothSimilarities.foreach(s -> System.out.println(s));
-
+        /* RMSE
         JavaPairRDD<Object, Object> rmse = pairsWithBothSimilarities.mapToPair(x -> new Tuple2<Object, Object>(x._2._1, x._2._2));
         RegressionMetrics metrics = new RegressionMetrics(rmse.rdd());
         System.out.println("RMSE: " + metrics.rootMeanSquaredError());
+        */
 
         JavaPairRDD<Integer, Integer> referencePairs = pairsWithBothSimilarities.filter(f -> f._2._1 >= minSimilarityBroadcast.value())
                 .mapToPair(m -> m._1);
 
-        // pairsWithBothSimilarities.filter(f -> f._2._1 >= minSimilarityBroadcast.value()).foreach(s -> System.out.println(s));
+        List<Tuple2<Integer, Integer>> result = referencePairs.collect();
+        System.out.println("Found pairs: " + result);
 
-        return referencePairs.collect();
+        return result;
 
     }
-
-    private JavaPairRDD<Integer, List<Integer>> oneHot() {
-        return null;
-    }
-
-    private JavaPairRDD<Integer, List<Integer>> minHash() {
-        return null;
-    }
-
-    private JavaPairRDD<Integer, List<Integer>> lsh() {
-        return null;
-    }
-
-     /*
-        JavaPairRDD<Integer, Tuple2<List<Integer>, List<Integer>>> oneHotAndSignatures = oneHot.join(signatures); // (id, (oneHot-List, signature-List))
-
-        // Paare mit zugehörigen OneHot-Kodierungen und Signaturen
-        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>>> pairsOneHotAndSignatures = similiarDocuments.flatMapToPair(f -> { // ((a, b), ((oneHotA, SigA), (oneHotB, SigB)))
-            List<Tuple2<Integer, Tuple2<Integer, Integer>>> list = new ArrayList<>();
-            list.add(new Tuple2<Integer, Tuple2<Integer, Integer>>(f._1, f));
-            list.add(new Tuple2<Integer, Tuple2<Integer, Integer>>(f._2, f));
-            return list.iterator();
-        })
-                .join(oneHotAndSignatures)
-                .mapToPair(m -> {
-                    Tuple2<Integer, Integer> pair = m._2._1;
-                    Integer documentID = m._1;
-                    Tuple2<List<Integer>, List<Integer>> lists = m._2._2;
-                    return new Tuple2<Tuple2<Integer, Integer>, Tuple2<Integer, Tuple2<List<Integer>, List<Integer>>>>(pair, new Tuple2<Integer, Tuple2<List<Integer>, List<Integer>>>(documentID, lists));
-                })
-                .groupByKey()
-                .mapToPair(p -> {
-                    Tuple2<Integer, Integer> pair = p._1;
-                    Iterator<Tuple2<Integer, Tuple2<List<Integer>, List<Integer>>>> iterator = p._2.iterator();
-                    Tuple2<Integer, Tuple2<List<Integer>, List<Integer>>> first = iterator.next();
-                    Tuple2<Integer, Tuple2<List<Integer>, List<Integer>>> second = iterator.next();
-                    Tuple2<List<Integer>, List<Integer>> firstLists = (pair._1 == first._1) ? first._2 : second._2;
-                    Tuple2<List<Integer>, List<Integer>> secondLists = (pair._2 == second._1) ? second._2 : first._2;
-                    return new Tuple2<Tuple2<Integer, Integer>, Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>>>(pair, new Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>>(firstLists, secondLists));
-                });
-
-        // Jaccard- und MinHash-Ähnlichkeiten berechnen
-        JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Double, Double>> pairsWithBothSimilarities = pairsOneHotAndSignatures.mapToPair(p -> {
-            double jaccard = jaccardSimilarityForOneHot(p._2._1._1, p._2._2._1);
-            double minHash = jaccardSimilarityForMinHash(p._2._1._2, p._2._2._2);
-            return new Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>(p._1, new Tuple2<Double, Double>(jaccard, minHash));
-        }); // .filter(x -> x._2._1 >= minSimilarityBroadcast.value()); // filtern nach Jaccard-Ähnlichkeit
-        */
 
 }
