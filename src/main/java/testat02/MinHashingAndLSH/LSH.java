@@ -28,7 +28,7 @@ public class LSH implements java.io.Serializable {
     private final int k = 3;
     private final double minSimilarity = 0.8;
 
-    private final String path = "/Users/jakobschwerter/Development/data-mining-praktikum/daten/imdb.txt";
+    private final String path = "daten/imdb.txt";
 
     public static void main(String[] args) {
 
