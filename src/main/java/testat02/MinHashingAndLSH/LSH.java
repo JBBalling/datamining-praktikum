@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * sparkSubmit --class testat02.MinHashingAndLSH.LSH target/data-mining-praktikum-1.0-SNAPSHOT.jar
@@ -50,30 +51,13 @@ public class LSH implements java.io.Serializable {
         lsh.jsc.stop();
     }
 
-    static double jaccardSimilarity(List<Integer> list1, List<Integer> list2) {
-        if (list1.size() != list2.size()) {
-            System.err.println("sizeError");
-        }
-        int same = 0;
-        int allWithOne = 0;
-        for (int i = 0; i < list1.size(); i++) {
-            if (list1.get(i) == 1 && list2.get(i) == 1) {
-                same++;
-            }
-            if (list1.get(i) == 1 || list2.get(i) == 1) {
-                allWithOne++;
-            }
-        }
-        return (double) same / (double) allWithOne;
+    static double jaccardSimilarity(Set<Integer> set1, Set<Integer> set2) {
+        Set<Integer> both = new HashSet<Integer>(set1);
+        both.addAll(set2);
+        Set<Integer> intersection = new HashSet<Integer>(set1);
+        intersection.retainAll(set2);
+        return (double) intersection.size() / (double) both.size();
     }
-
-    /*
-
-    Problem evtl.:
-    von shingles mit > 2 vorkommen: nur gemeinsamkeiten
-    alle unterschiede sind "seltene" shingles, sodass sie für jaccard distanz nicht betrachtet werden
-
-     */
 
     static double jaccardSimilarity2(List<Integer> list1, List<Integer> list2) {
         if (list1.size() != list2.size()) {
@@ -87,10 +71,6 @@ public class LSH implements java.io.Serializable {
         }
         return (double) same / (double) list1.size();
     }
-
-    /**
-     * OneHot: nur Positionen der Einsen abspeichern?
-     */
 
     List<Tuple2<Integer, Integer>> main(int bandsParam) {
 
@@ -119,7 +99,7 @@ public class LSH implements java.io.Serializable {
             }
             return list.iterator();
         }).reduceByKey((n1, n2) -> n1 + n2) // nur Shingles, die in mindestens 2 Dokumenten vorkommen
-                .filter(f -> f._2 > 1) // ???
+                .filter(f -> f._2 > 1)
                 .map(m -> m._1);
 
         // Referenz-Array mit allen möglichen Shingles
@@ -129,16 +109,14 @@ public class LSH implements java.io.Serializable {
         Broadcast<String[]> oneHotReference = jsc.broadcast(tempArray);
 
         // one-hot Kodierung
-        JavaPairRDD<Integer, List<Integer>> oneHot = lines.mapToPair(l -> {
-            List<Integer> oneHotArr = new ArrayList<>(oneHotReference.value().length);
+        JavaPairRDD<Integer, Set<Integer>> oneHot = lines.mapToPair(l -> {
+            Set<Integer> oneHotSet = new HashSet<Integer>();
             for (int i = 0; i < oneHotReference.value().length; i++) {
                 if (l.getShingles().contains(oneHotReference.value()[i])) {
-                    oneHotArr.add(i, 1);
-                } else {
-                    oneHotArr.add(i, 0);
+                    oneHotSet.add(i);
                 }
             }
-            return new Tuple2<Integer, List<Integer>>(l.getID(), oneHotArr);
+            return new Tuple2<Integer, Set<Integer>>(l.getID(), oneHotSet);
         });
 
         // Hashfunktionen für minHash
@@ -165,12 +143,10 @@ public class LSH implements java.io.Serializable {
             for (int i = 0; i < hashFunctionsBroadcast.value().length; i++) {
                 sig.add(Integer.MAX_VALUE);
             }
-            for (int i = 0; i < m._2.size(); i++) {
-                if (m._2.get(i) == 1) {
-                    for (int j = 0; j < permutationsBroadcast.value().get(i).size(); j++) {
-                        if (permutationsBroadcast.value().get(i).get(j) < sig.get(j)) {
-                            sig.set(j, permutationsBroadcast.value().get(i).get(j));
-                        }
+            for (Integer i : m._2) {
+                for (int j = 0; j < permutationsBroadcast.value().get(i).size(); j++) {
+                    if (permutationsBroadcast.value().get(i).get(j) < sig.get(j)) {
+                        sig.set(j, permutationsBroadcast.value().get(i).get(j));
                     }
                 }
             }
@@ -213,9 +189,9 @@ public class LSH implements java.io.Serializable {
 
         System.out.println("Pairs: " + similiarDocuments.count());
 
+        /*
         JavaPairRDD<Integer, Tuple2<List<Integer>, List<Integer>>> oneHotAndSignatures = oneHot.join(signatures); // (id, (oneHot-List, signature-List))
 
-        /*
         // Paare mit zugehörigen OneHot-Kodierungen und Signaturen
         JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>>> pairsOneHotAndSignatures = similiarDocuments.flatMapToPair(f -> { // ((a, b), ((oneHotA, SigA), (oneHotB, SigB)))
             List<Tuple2<Integer, Tuple2<Integer, Integer>>> list = new ArrayList<>();
@@ -249,11 +225,15 @@ public class LSH implements java.io.Serializable {
         }); // .filter(x -> x._2._1 >= minSimilarityBroadcast.value()); // filtern nach Jaccard-Ähnlichkeit
         */
 
+
         // Jaccard- und MinHash-Ähnlichkeiten berechnen
         List<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithSimilarities = new ArrayList<>();
         for (Tuple2<Integer, Integer> p : similiarDocuments.collect()) {
             double jaccard = jaccardSimilarity(oneHot.lookup(p._1).get(0), oneHot.lookup(p._2).get(0));
+            System.out.println(jaccard);
             double minHash = jaccardSimilarity2(signatures.lookup(p._1).get(0), signatures.lookup(p._2).get(0));
+            System.out.println(minHash);
+            System.out.println();
             pairsWithSimilarities.add(new Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>(p, new Tuple2<Double, Double>(jaccard, minHash)));
         }
         JavaRDD<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithBothSimilarities = jsc.parallelize(pairsWithSimilarities);
