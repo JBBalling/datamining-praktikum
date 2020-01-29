@@ -37,7 +37,31 @@ public class LSH implements java.io.Serializable {
         lsh.jsc = new JavaSparkContext(lsh.conf);
 
         Set<Tuple2<Integer, Integer>> referenceSet = getReferenceSet();
-        getSetPercentage(lsh.findPairs(5), referenceSet);
+        getSetPercentage(lsh.findPairs(20), referenceSet); // ~30 Paare & ~21/22 gefunden
+        getSetPercentage(lsh.findPairs(25), referenceSet); // ~150 Paare & ~21/22 gefunden
+
+        // 22/22 gefundene Paare: ab ~35 Bänder
+
+        // alle Paare finden
+        /*
+        HashSet<Tuple2<Integer, Integer>> pairsSet = new HashSet<>();
+        for (int i = 1; i < 500; i = i + 5) { // Julian: 11-34
+            pairsSet.addAll(lsh.findPairs(i));
+            System.out.println();
+            System.out.println("All Pairs up to " + i + " bands: " + pairsSet);
+        }
+        System.out.println();
+        System.out.println("End - Pairs: ");
+        System.out.println(pairsSet);
+        */
+
+        // Bänderanzahl optimieren
+        /*
+        Set<Tuple2<Integer, Integer>> referenceSet = getReferenceSet();
+        for (int i = 5; i <= 50; i += 5) {
+            System.out.println("Pairs found: " + getSetPercentage(lsh.findPairs(i), referenceSet) + "%");
+        }
+        */
 
         lsh.jsc.stop();
 
@@ -74,6 +98,7 @@ public class LSH implements java.io.Serializable {
      * Gibt ein Set mit allen Paaren zurück
      */
     static Set<Tuple2<Integer, Integer>> getReferenceSet() {
+
         int[][] referencePairsArray = new int[][]{
                 new int[]{6194,6195},
                 new int[]{6194,6197},
@@ -117,7 +142,7 @@ public class LSH implements java.io.Serializable {
             }
         }
         double result = (double) amountFound / (double) referenceSet.size();
-        System.out.println("Pairs found: " + result + "%");
+        System.out.println("Pairs found: " + (result * 100) + "%");
         return result;
     }
 
@@ -126,15 +151,6 @@ public class LSH implements java.io.Serializable {
      * Die Anzahl der Bänder werden als Parameter übergeben.
      */
     List<Tuple2<Integer, Integer>> findPairs(int bandsParam) {
-
-        /**
-         * Referenz-Paare (1-34):
-         * (6194,6195), (6194,6197), (9755,9772), (6176,6177), (7208,7209), (793,848), (6227,6229), (454,458), (4453,4454), (2859,2870), (8199,8209), (6177,6183), (1739,1754), (629,631), (9385,9386), (6176,6183), (9552,9553), (8392,8403), (6195,6197), (7091,7093), (2733,2734), (9379,9382)
-         *
-         * Referenz-Paare (35-...):
-         * ...
-         *
-         */
 
         int bands = bandsParam;
         int rows = numberHashFunctions / bands;
@@ -147,7 +163,7 @@ public class LSH implements java.io.Serializable {
         System.out.println("\nBands: " + bandsParam);
 
         // Daten einlesen
-        JavaRDD<Review> lines = jsc.parallelize(jsc.textFile(path).take(10000)) // jsc.textFile(path) für alle Zeilen
+        JavaRDD<Review> lines = jsc.parallelize(jsc.textFile(path).take(10000))
                 .map(l -> new Review(l, shingleSize.value()));
 
         // alle Shingles aus allen Dokumenten
@@ -168,7 +184,7 @@ public class LSH implements java.io.Serializable {
         Broadcast<String[]> oneHotReference = jsc.broadcast(tempArray);
 
         // one-hot Kodierung
-        JavaPairRDD<Integer, Set<Integer>> oneHot = lines.mapToPair(l -> {
+        JavaPairRDD<Integer, Set<Integer>> oneHot = lines.mapToPair(l -> { // (documentID, OneHot)
             Set<Integer> oneHotSet = new HashSet<Integer>();
             for (int i = 0; i < oneHotReference.value().length; i++) {
                 if (l.getShingles().contains(oneHotReference.value()[i])) {
@@ -259,15 +275,16 @@ public class LSH implements java.io.Serializable {
         }
         JavaRDD<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithBothSimilarities = jsc.parallelize(pairsWithSimilarities);
 
-        /* RMSE
+        /*
+        // RMSE
         JavaPairRDD<Object, Object> rmse = pairsWithBothSimilarities.mapToPair(x -> new Tuple2<Object, Object>(x._2._1, x._2._2));
         RegressionMetrics metrics = new RegressionMetrics(rmse.rdd());
         System.out.println("RMSE: " + metrics.rootMeanSquaredError());
         */
 
+        // Paare mit Jaccard-Ähnlichkeit >= 0,8
         JavaPairRDD<Integer, Integer> referencePairs = pairsWithBothSimilarities.filter(f -> f._2._1 >= minSimilarityBroadcast.value())
                 .mapToPair(m -> m._1);
-
         List<Tuple2<Integer, Integer>> result = referencePairs.collect();
         System.out.println("Found pairs: " + result + " (amount: " + result.size() + ")");
 

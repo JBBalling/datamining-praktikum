@@ -59,8 +59,7 @@ public class APriori implements java.io.Serializable {
      * - Confidence: sup(i_1, i_2, ..., i_k, j) / sup(i_1, i_2, ..., i_k)
      */
     private void aPriori() {
-        System.out.println("### Own Implementation ###");
-        System.out.println();
+        System.out.println("### Own Implementation ###\n");
 
         Broadcast<Double> confidence = jsc.broadcast(minConfidence);
         Broadcast<Double> support = jsc.broadcast(minSupport);
@@ -124,8 +123,7 @@ public class APriori implements java.io.Serializable {
         System.out.println("L3: " + frequentSetsWith3Elements.count()); // 16
 
         // häufige Mengen ausgeben:
-        System.out.println();
-        System.out.println("Frequent Pairs & Triples:");
+        System.out.println("\nFrequent Pairs & Triples:");
         frequentSetsWith2Elements.foreach(s -> System.out.println(s));
         frequentSetsWith3Elements.foreach(s -> System.out.println(s));
 
@@ -158,14 +156,16 @@ public class APriori implements java.io.Serializable {
                 .sortByKey(false);
 
         // alle Regeln ausgeben:
-        System.out.println();
-        System.out.println("Rules: ");
+        System.out.println("\nRules: ");
         for (Tuple2 t : allRulesWithConfidence.collect()) {
             System.out.println(t._2);
         }
 
     }
 
+    /**
+     * Findet häufige Mengen
+     */
     private JavaPairRDD<ItemSet, Double> getFrequentItemSets(JavaRDD<ItemSet> input, Broadcast<List<ItemSet>> sessions, Broadcast<Long> amountOfSessions, Broadcast<Double> support) {
 
         return input.flatMapToPair(c -> {
@@ -199,16 +199,14 @@ public class APriori implements java.io.Serializable {
                 .setNumPartitions(10);
         FPGrowthModel<String> model = fpg.run(transactions);
 
-        System.out.println();
-        System.out.println("Frequent Pairs & Triples:");
+        System.out.println("\nFrequent Pairs & Triples:");
         for (FPGrowth.FreqItemset<String> itemset: model.freqItemsets().toJavaRDD().collect()) {
             if (itemset.javaItems().size() >= 2) {
                 System.out.println("[" + itemset.javaItems() + "], " + itemset.freq());
             }
         }
 
-        System.out.println();
-        System.out.println("Rules:");
+        System.out.println("\nRules:");
         for (AssociationRules.Rule<String> rule : model.generateAssociationRules(minConfidence).toJavaRDD().collect()) {
             System.out.println(rule.javaAntecedent() + " => " + rule.javaConsequent() + ", " + rule.confidence());
         }

@@ -29,24 +29,6 @@ public class HashFunction implements java.io.Serializable {
         return (int) ((Math.random() * (randomUpperBound - randomLowerBound)) + randomLowerBound);
     }
 
-    public static void main(String[] args) {
-        // int[] arr = new int[100];
-        for (int i = 0; i < 1000; i++) {
-            System.out.println(new Random().nextInt(Integer.MAX_VALUE));
-            // HashFunction h = new HashFunction();
-            //System.out.println(h.hash(i));
-            // arr[h.hash(i)] += 1;
-        }
-
-        /*
-        System.out.println();
-        for (Integer i : arr) {
-            System.out.print(i + ", ");
-        }
-        */
-
-    }
-
     int hash(int x) {
         return Math.floorMod(Math.floorMod(((a * x) + b), primeNumber), minHashSignatureSize);
     }

@@ -97,18 +97,6 @@ public class ItemSet implements java.io.Serializable {
         return rules;
     }
 
-    public static void main(String[] args) {
-        ItemSet test2 = new ItemSet();
-        test2.add("x");
-        test2.add("b");
-        test2.add("d");
-        ItemSet test3 = new ItemSet();
-        test3.add("x");
-        test3.add("b");
-        test3.add("c");
-        System.out.println(test2.getPossibleCombinations(test3));
-    }
-
     @Override
     public String toString() {
         StringBuilder stringBuilder = new StringBuilder();

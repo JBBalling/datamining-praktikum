@@ -20,7 +20,7 @@ public class Review implements java.io.Serializable {
         int commaIndex = review.indexOf(",");
         this.id = Integer.parseInt(review.substring(1, commaIndex - 1));
         review = review.substring(commaIndex + 2, review.length());
-        for (int i = 0; i < review.length() - 1; i++) {
+        for (int i = 0; i < review.length() - 1; i++) { // Shingles bilden
             int endIndex = i + shingleSize;
             if (endIndex >= review.length()) {
                 endIndex = review.length() - 1;
