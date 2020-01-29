@@ -38,7 +38,7 @@ public class LSH implements java.io.Serializable {
 
         Set<Tuple2<Integer, Integer>> referenceSet = getReferenceSet();
         getSetPercentage(lsh.findPairs(20), referenceSet); // ~30 Paare & ~21/22 gefunden
-        getSetPercentage(lsh.findPairs(25), referenceSet); // ~150 Paare & ~21/22 gefunden
+        // getSetPercentage(lsh.findPairs(25), referenceSet); // ~140 Paare & ~21/22 gefunden
 
         // 22/22 gefundene Paare: ab ~35 Bänder
 
