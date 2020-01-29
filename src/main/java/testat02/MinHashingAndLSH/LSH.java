@@ -37,7 +37,7 @@ public class LSH implements java.io.Serializable {
         LSH lsh = new LSH();
         lsh.conf = new SparkConf().set("spark.executor.memory", "8G");
         lsh.jsc = new JavaSparkContext(lsh.conf);
-        for (int i = 15; i < 56; i = i + 5) {
+        for (int i = 35; i < 500; i = i + 5) { // Julian: 11-34
             pairsSet.addAll(lsh.main(i));
             System.out.println("Pairs at " + i + ": " + pairsSet);
         }
@@ -73,6 +73,13 @@ public class LSH implements java.io.Serializable {
         /**
          * Referenz-Paare (1-10):
          * (6194,6195), (6194,6197), (7208,7209), (6176,6177), (9755,9772), (793,848), (6227,6229), (454,458), (4453,4454), (8199,8209), (6177,6183), (1739,1754), (629,631), (9385,9386), (6176,6183), (9552,9553), (6195,6197), (8392,8403), (7091,7093), (2733,2734), (9379,9382)
+         *
+         * Referenz-Paare (11-34):
+         * ...
+         *
+         * Referenz-Paare (35-...):
+         * ...
+         *
          */
 
         int bands = bandsParam;
