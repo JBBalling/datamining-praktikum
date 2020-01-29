@@ -1,6 +1,7 @@
 package testat02.MinHashingAndLSH;
 
 import com.google.common.collect.Lists;
+import org.apache.spark.HashPartitioner;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
@@ -36,16 +37,13 @@ public class LSH implements java.io.Serializable {
         LSH lsh = new LSH();
         lsh.conf = new SparkConf().set("spark.executor.memory", "8G");
         lsh.jsc = new JavaSparkContext(lsh.conf);
-        lsh.main(10);
-        /*
-        for (int i = 25; i < 50; i = i + 2) {
+        for (int i = 15; i < 56; i = i + 5) {
             pairsSet.addAll(lsh.main(i));
             System.out.println("Pairs at " + i + ": " + pairsSet);
         }
         System.out.println();
         System.out.println("Pairs: ");
         System.out.println(pairsSet);
-        */
         lsh.jsc.stop();
     }
 
@@ -73,8 +71,8 @@ public class LSH implements java.io.Serializable {
     List<Tuple2<Integer, Integer>> main(int bandsParam) {
 
         /**
-         * Referenz-Paare:
-         *
+         * Referenz-Paare (1-10):
+         * (6194,6195), (6194,6197), (7208,7209), (6176,6177), (9755,9772), (793,848), (6227,6229), (454,458), (4453,4454), (8199,8209), (6177,6183), (1739,1754), (629,631), (9385,9386), (6176,6183), (9552,9553), (6195,6197), (8392,8403), (7091,7093), (2733,2734), (9379,9382)
          */
 
         int bands = bandsParam;
@@ -115,7 +113,8 @@ public class LSH implements java.io.Serializable {
                 }
             }
             return new Tuple2<Integer, Set<Integer>>(l.getID(), oneHotSet);
-        });
+        }).partitionBy(new HashPartitioner(10));
+        oneHot.cache();
 
         // Hashfunktionen für minHash
         HashFunction[] hashFunctions = new HashFunction[numberHashFunctions];
@@ -149,7 +148,8 @@ public class LSH implements java.io.Serializable {
                 }
             }
             return new Tuple2<Integer, List<Integer>>(m._1, sig);
-        });
+        }).partitionBy(new HashPartitioner(10));
+        signatures.cache();
 
         // Auf Bänder aufteilen und hashen
         JavaPairRDD<Tuple2<Integer, HashCode>, Integer> signaturesDividedInBands = signatures.flatMapToPair(f -> {
@@ -187,7 +187,43 @@ public class LSH implements java.io.Serializable {
 
         System.out.println("Pairs: " + similiarDocuments.count());
 
-        /*
+        // Jaccard- und MinHash-Ähnlichkeiten berechnen
+        List<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithSimilarities = new ArrayList<>();
+        for (Tuple2<Integer, Integer> p : similiarDocuments.collect()) {
+            double jaccard = jaccardSimilarityForOneHot(oneHot.lookup(p._1).get(0), oneHot.lookup(p._2).get(0));
+            double minHash = jaccardSimilarityForMinHash(signatures.lookup(p._1).get(0), signatures.lookup(p._2).get(0));
+            pairsWithSimilarities.add(new Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>(p, new Tuple2<Double, Double>(jaccard, minHash)));
+        }
+        JavaRDD<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithBothSimilarities = jsc.parallelize(pairsWithSimilarities);
+
+        // pairsWithBothSimilarities.foreach(s -> System.out.println(s));
+
+        JavaPairRDD<Object, Object> rmse = pairsWithBothSimilarities.mapToPair(x -> new Tuple2<Object, Object>(x._2._1, x._2._2));
+        RegressionMetrics metrics = new RegressionMetrics(rmse.rdd());
+        System.out.println("RMSE: " + metrics.rootMeanSquaredError());
+
+        JavaPairRDD<Integer, Integer> referencePairs = pairsWithBothSimilarities.filter(f -> f._2._1 >= minSimilarityBroadcast.value())
+                .mapToPair(m -> m._1);
+
+        // pairsWithBothSimilarities.filter(f -> f._2._1 >= minSimilarityBroadcast.value()).foreach(s -> System.out.println(s));
+
+        return referencePairs.collect();
+
+    }
+
+    private JavaPairRDD<Integer, List<Integer>> oneHot() {
+        return null;
+    }
+
+    private JavaPairRDD<Integer, List<Integer>> minHash() {
+        return null;
+    }
+
+    private JavaPairRDD<Integer, List<Integer>> lsh() {
+        return null;
+    }
+
+     /*
         JavaPairRDD<Integer, Tuple2<List<Integer>, List<Integer>>> oneHotAndSignatures = oneHot.join(signatures); // (id, (oneHot-List, signature-List))
 
         // Paare mit zugehörigen OneHot-Kodierungen und Signaturen
@@ -222,43 +258,5 @@ public class LSH implements java.io.Serializable {
             return new Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>(p._1, new Tuple2<Double, Double>(jaccard, minHash));
         }); // .filter(x -> x._2._1 >= minSimilarityBroadcast.value()); // filtern nach Jaccard-Ähnlichkeit
         */
-
-
-        // Jaccard- und MinHash-Ähnlichkeiten berechnen
-        List<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithSimilarities = new ArrayList<>();
-        for (Tuple2<Integer, Integer> p : similiarDocuments.collect()) {
-            double jaccard = jaccardSimilarityForOneHot(oneHot.lookup(p._1).get(0), oneHot.lookup(p._2).get(0));
-            System.out.println(jaccard);
-            double minHash = jaccardSimilarityForMinHash(signatures.lookup(p._1).get(0), signatures.lookup(p._2).get(0));
-            System.out.println(minHash);
-            System.out.println();
-            pairsWithSimilarities.add(new Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>(p, new Tuple2<Double, Double>(jaccard, minHash)));
-        }
-        JavaRDD<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithBothSimilarities = jsc.parallelize(pairsWithSimilarities);
-
-        pairsWithBothSimilarities.foreach(s -> System.out.println(s));
-
-        JavaPairRDD<Object, Object> rmse = pairsWithBothSimilarities.mapToPair(x -> new Tuple2<Object, Object>(x._2._1, x._2._2));
-        RegressionMetrics metrics = new RegressionMetrics(rmse.rdd());
-        System.out.println("RMSE: " + metrics.rootMeanSquaredError());
-
-        JavaPairRDD<Integer, Integer> referencePairs = pairsWithBothSimilarities.filter(f -> f._2._1 >= minSimilarityBroadcast.value())
-                .mapToPair(m -> m._1);
-
-        return referencePairs.collect();
-
-    }
-
-    private JavaPairRDD<Integer, List<Integer>> oneHot() {
-        return null;
-    }
-
-    private JavaPairRDD<Integer, List<Integer>> minHash() {
-        return null;
-    }
-
-    private JavaPairRDD<Integer, List<Integer>> lsh() {
-        return null;
-    }
 
 }
