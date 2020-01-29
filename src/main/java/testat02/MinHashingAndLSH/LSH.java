@@ -45,13 +45,11 @@ public class LSH implements java.io.Serializable {
         // alle Paare finden
         /*
         HashSet<Tuple2<Integer, Integer>> pairsSet = new HashSet<>();
-        for (int i = 1; i < 500; i = i + 5) { // Julian: 11-34
+        for (int i = 1; i < 55; i++) {
             pairsSet.addAll(lsh.findPairs(i));
-            System.out.println();
-            System.out.println("All Pairs up to " + i + " bands: " + pairsSet);
+            System.out.println("\nAll Pairs up to " + i + " bands: " + pairsSet);
         }
-        System.out.println();
-        System.out.println("End - Pairs: ");
+        System.out.println("\nAll pairs: ");
         System.out.println(pairsSet);
         */
 
@@ -59,7 +57,7 @@ public class LSH implements java.io.Serializable {
         /*
         Set<Tuple2<Integer, Integer>> referenceSet = getReferenceSet();
         for (int i = 5; i <= 50; i += 5) {
-            System.out.println("Pairs found: " + getSetPercentage(lsh.findPairs(i), referenceSet) + "%");
+            getSetPercentage(lsh.findPairs(i), referenceSet);
         }
         */
 
