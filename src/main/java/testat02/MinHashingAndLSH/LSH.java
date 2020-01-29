@@ -12,9 +12,7 @@ import com.google.common.hash.*;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 
 /**
@@ -51,7 +49,7 @@ public class LSH implements java.io.Serializable {
         lsh.jsc.stop();
     }
 
-    static double jaccardSimilarity(Set<Integer> set1, Set<Integer> set2) {
+    static double jaccardSimilarityForOneHot(Set<Integer> set1, Set<Integer> set2) {
         Set<Integer> both = new HashSet<Integer>(set1);
         both.addAll(set2);
         Set<Integer> intersection = new HashSet<Integer>(set1);
@@ -59,7 +57,7 @@ public class LSH implements java.io.Serializable {
         return (double) intersection.size() / (double) both.size();
     }
 
-    static double jaccardSimilarity2(List<Integer> list1, List<Integer> list2) {
+    static double jaccardSimilarityForMinHash(List<Integer> list1, List<Integer> list2) {
         if (list1.size() != list2.size()) {
             System.err.println("sizeError");
         }
@@ -219,8 +217,8 @@ public class LSH implements java.io.Serializable {
 
         // Jaccard- und MinHash-Ähnlichkeiten berechnen
         JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Double, Double>> pairsWithBothSimilarities = pairsOneHotAndSignatures.mapToPair(p -> {
-            double jaccard = jaccardSimilarity(p._2._1._1, p._2._2._1);
-            double minHash = jaccardSimilarity2(p._2._1._2, p._2._2._2);
+            double jaccard = jaccardSimilarityForOneHot(p._2._1._1, p._2._2._1);
+            double minHash = jaccardSimilarityForMinHash(p._2._1._2, p._2._2._2);
             return new Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>(p._1, new Tuple2<Double, Double>(jaccard, minHash));
         }); // .filter(x -> x._2._1 >= minSimilarityBroadcast.value()); // filtern nach Jaccard-Ähnlichkeit
         */
@@ -229,9 +227,9 @@ public class LSH implements java.io.Serializable {
         // Jaccard- und MinHash-Ähnlichkeiten berechnen
         List<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithSimilarities = new ArrayList<>();
         for (Tuple2<Integer, Integer> p : similiarDocuments.collect()) {
-            double jaccard = jaccardSimilarity(oneHot.lookup(p._1).get(0), oneHot.lookup(p._2).get(0));
+            double jaccard = jaccardSimilarityForOneHot(oneHot.lookup(p._1).get(0), oneHot.lookup(p._2).get(0));
             System.out.println(jaccard);
-            double minHash = jaccardSimilarity2(signatures.lookup(p._1).get(0), signatures.lookup(p._2).get(0));
+            double minHash = jaccardSimilarityForMinHash(signatures.lookup(p._1).get(0), signatures.lookup(p._2).get(0));
             System.out.println(minHash);
             System.out.println();
             pairsWithSimilarities.add(new Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>(p, new Tuple2<Double, Double>(jaccard, minHash)));
