@@ -36,7 +36,8 @@ public class LSH implements java.io.Serializable {
         lsh.conf = new SparkConf().set("spark.executor.memory", "8G");
         lsh.jsc = new JavaSparkContext(lsh.conf);
 
-        getSetPercentage(lsh.findPairs(25), getReferenceSet());
+        Set<Tuple2<Integer, Integer>> referenceSet = getReferenceSet();
+        getSetPercentage(lsh.findPairs(5), referenceSet);
 
         lsh.jsc.stop();
 
@@ -101,7 +102,7 @@ public class LSH implements java.io.Serializable {
         for (int[] ref : referencePairsArray) {
             referencePairs.add(new Tuple2<Integer, Integer>(ref[0], ref[1]));
         }
-        System.out.println("All pairs (for reference): " + referencePairs);
+        System.out.println("All pairs (for reference): " + referencePairs + " (amount: " + referencePairs.size() + ")");
         return referencePairs;
     }
 
@@ -268,7 +269,7 @@ public class LSH implements java.io.Serializable {
                 .mapToPair(m -> m._1);
 
         List<Tuple2<Integer, Integer>> result = referencePairs.collect();
-        System.out.println("Found pairs: " + result);
+        System.out.println("Found pairs: " + result + " (amount: " + result.size() + ")");
 
         return result;
 
