@@ -11,6 +11,7 @@ import scala.Tuple2;
 import com.google.common.hash.*;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
@@ -27,21 +28,31 @@ public class LSH implements java.io.Serializable {
 
     static int numberHashFunctions = 1000;
     private int k = 3;
-    private int bands = 10;
-    private int rows = numberHashFunctions / bands;
     private double minSimilarity = 0.8;
 
     private String path = "/Users/jakobschwerter/Development/data-mining-praktikum/daten/imdb.txt";
 
     public static void main(String[] args) {
+        HashSet<Tuple2<Integer, Integer>> pairsSet = new HashSet<>();
         LSH lsh = new LSH();
-        lsh.main();
+        lsh.conf = new SparkConf().set("spark.executor.memory", "8G");
+        lsh.jsc = new JavaSparkContext(lsh.conf);
+        lsh.main(10);
+        /*
+        for (int i = 25; i < 50; i = i + 2) {
+            pairsSet.addAll(lsh.main(i));
+            System.out.println("Pairs at " + i + ": " + pairsSet);
+        }
+        System.out.println();
+        System.out.println("Pairs: ");
+        System.out.println(pairsSet);
+        */
         lsh.jsc.stop();
     }
 
-    static double jaccardSimilarity(List<Integer> list1, List<Integer> list2) throws Exception {
+    static double jaccardSimilarity(List<Integer> list1, List<Integer> list2) {
         if (list1.size() != list2.size()) {
-            throw new Exception();
+            System.err.println("sizeError");
         }
         int same = 0;
         int allWithOne = 0;
@@ -56,9 +67,17 @@ public class LSH implements java.io.Serializable {
         return (double) same / (double) allWithOne;
     }
 
-    static double jaccardSimilarity2(List<Integer> list1, List<Integer> list2) throws Exception {
+    /*
+
+    Problem evtl.:
+    von shingles mit > 2 vorkommen: nur gemeinsamkeiten
+    alle unterschiede sind "seltene" shingles, sodass sie für jaccard distanz nicht betrachtet werden
+
+     */
+
+    static double jaccardSimilarity2(List<Integer> list1, List<Integer> list2) {
         if (list1.size() != list2.size()) {
-            throw new Exception();
+            System.err.println("sizeError");
         }
         int same = 0;
         for (int i = 0; i < list1.size(); i++) {
@@ -69,10 +88,20 @@ public class LSH implements java.io.Serializable {
         return (double) same / (double) list1.size();
     }
 
-    void main() {
+    /**
+     * OneHot: nur Positionen der Einsen abspeichern?
+     */
 
-        conf = new SparkConf().set("spark.executor.memory", "8G");
-        jsc = new JavaSparkContext(conf);
+    List<Tuple2<Integer, Integer>> main(int bandsParam) {
+
+        /**
+         * Referenz-Paare:
+         *
+         */
+
+        int bands = bandsParam;
+        int rows = numberHashFunctions / bands;
+
         Broadcast<Integer> shingleSize = jsc.broadcast(k);
         Broadcast<Integer> bandsBroadcast = jsc.broadcast(bands);
         Broadcast<Integer> rowsBroadcast = jsc.broadcast(rows);
@@ -90,7 +119,7 @@ public class LSH implements java.io.Serializable {
             }
             return list.iterator();
         }).reduceByKey((n1, n2) -> n1 + n2) // nur Shingles, die in mindestens 2 Dokumenten vorkommen
-                .filter(f -> f._2 > 1)
+                .filter(f -> f._2 > 1) // ???
                 .map(m -> m._1);
 
         // Referenz-Array mit allen möglichen Shingles
@@ -186,6 +215,7 @@ public class LSH implements java.io.Serializable {
 
         JavaPairRDD<Integer, Tuple2<List<Integer>, List<Integer>>> oneHotAndSignatures = oneHot.join(signatures); // (id, (oneHot-List, signature-List))
 
+        /*
         // Paare mit zugehörigen OneHot-Kodierungen und Signaturen
         JavaPairRDD<Tuple2<Integer, Integer>, Tuple2<Tuple2<List<Integer>, List<Integer>>, Tuple2<List<Integer>, List<Integer>>>> pairsOneHotAndSignatures = similiarDocuments.flatMapToPair(f -> { // ((a, b), ((oneHotA, SigA), (oneHotB, SigB)))
             List<Tuple2<Integer, Tuple2<Integer, Integer>>> list = new ArrayList<>();
@@ -217,17 +247,27 @@ public class LSH implements java.io.Serializable {
             double minHash = jaccardSimilarity2(p._2._1._2, p._2._2._2);
             return new Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>(p._1, new Tuple2<Double, Double>(jaccard, minHash));
         }); // .filter(x -> x._2._1 >= minSimilarityBroadcast.value()); // filtern nach Jaccard-Ähnlichkeit
+        */
+
+        // Jaccard- und MinHash-Ähnlichkeiten berechnen
+        List<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithSimilarities = new ArrayList<>();
+        for (Tuple2<Integer, Integer> p : similiarDocuments.collect()) {
+            double jaccard = jaccardSimilarity(oneHot.lookup(p._1).get(0), oneHot.lookup(p._2).get(0));
+            double minHash = jaccardSimilarity2(signatures.lookup(p._1).get(0), signatures.lookup(p._2).get(0));
+            pairsWithSimilarities.add(new Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>(p, new Tuple2<Double, Double>(jaccard, minHash)));
+        }
+        JavaRDD<Tuple2<Tuple2<Integer, Integer>, Tuple2<Double, Double>>> pairsWithBothSimilarities = jsc.parallelize(pairsWithSimilarities);
 
         pairsWithBothSimilarities.foreach(s -> System.out.println(s));
-        // System.out.println("Amount of candidates: " + pairsWithBothSimilarities.count());
 
         JavaPairRDD<Object, Object> rmse = pairsWithBothSimilarities.mapToPair(x -> new Tuple2<Object, Object>(x._2._1, x._2._2));
         RegressionMetrics metrics = new RegressionMetrics(rmse.rdd());
         System.out.println("RMSE: " + metrics.rootMeanSquaredError());
 
-        // System.out.println();
-        // System.out.println("Similar candidates: ");
-        // pairsWithBothSimilarities.filter(x -> x._2._1 >= minSimilarityBroadcast.value()).foreach(s -> System.out.println(s));
+        JavaPairRDD<Integer, Integer> referencePairs = pairsWithBothSimilarities.filter(f -> f._2._1 >= minSimilarityBroadcast.value())
+                .mapToPair(m -> m._1);
+
+        return referencePairs.collect();
 
     }
 

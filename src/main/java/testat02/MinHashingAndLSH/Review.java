@@ -1,5 +1,8 @@
 package testat02.MinHashingAndLSH;
 
+import org.apache.spark.sql.sources.In;
+import scala.Tuple2;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
