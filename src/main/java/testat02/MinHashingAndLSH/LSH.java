@@ -217,7 +217,7 @@ public class LSH implements java.io.Serializable {
             for (int i = 0; i < hashFunctionsBroadcast.value().length; i++) {
                 sig.add(Integer.MAX_VALUE);
             }
-            for (Integer i : m._2) {
+            for (Integer i : m._2) { // oneHot HashSet durchgehen
                 for (int j = 0; j < permutationsBroadcast.value().get(i).size(); j++) {
                     if (permutationsBroadcast.value().get(i).get(j) < sig.get(j)) {
                         sig.set(j, permutationsBroadcast.value().get(i).get(j));
@@ -234,12 +234,12 @@ public class LSH implements java.io.Serializable {
             int band = 1;
             for (int i = 0; i < (bandsBroadcast.value() * rowsBroadcast.value()); i = i + rowsBroadcast.value()) {
                 List<Integer> rowList = f._2.subList(i, i + rowsBroadcast.value());
-                com.google.common.hash.HashFunction hashFunction = Hashing.murmur3_32(band);
+                com.google.common.hash.HashFunction hashFunction = Hashing.murmur3_32(band); // Hashen der Bänder, pro Band eine Hashfunktion
                 Hasher hasher = hashFunction.newHasher();
                 for (Integer integ : rowList) {
                     hasher.putInt(integ);
                 }
-                list.add(new Tuple2<Tuple2<Integer, HashCode>, Integer>(new Tuple2<Integer, HashCode>(band, hasher.hash()), f._1));
+                list.add(new Tuple2<Tuple2<Integer, HashCode>, Integer>(new Tuple2<Integer, HashCode>(band, hasher.hash()), f._1)); // ((Band, Hash des Abschnitt), DocumentID)
                 band++;
             }
             return list.iterator();

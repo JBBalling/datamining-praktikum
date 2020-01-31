@@ -113,7 +113,7 @@ public class APriori implements java.io.Serializable {
         JavaRDD<ItemSet> candidatesWith3Elements = frequentSetsWith2Elements.zipWithIndex()
                 .cartesian(frequentSetsWith2Elements.zipWithIndex())
                 .filter(f -> f._1()._2 < f._2()._2)
-                .flatMap(x -> x._1._1._1.getPossibleCombinations(x._2._1._1).iterator())
+                .flatMap(x -> x._1._1._1.getPossibleCombinations(x._2._1._1).iterator()) // alle möglichen Tripel aus 2 Paaren
                 .distinct();
         System.out.println("C3: " + candidatesWith3Elements.count());
 
@@ -129,14 +129,14 @@ public class APriori implements java.io.Serializable {
 
         // alle Regeln mit Konfidenz berechen:
         JavaPairRDD<Double, Rule> allRulesWithConfidence = frequentSetsWith2Elements.union(frequentSetsWith3Elements)
-                .flatMap(r -> {
+                .flatMap(r -> { // alle Regeln generieren
                     List<Tuple2<Tuple2<ItemSet, Double>, Rule>> list = new ArrayList<>(); // ((withJ, SupportWithJ), Rule)
                     for (Rule rule : r._1.generateRules()) {
-                        list.add(new Tuple2<Tuple2<ItemSet, Double>, Rule>(r, rule));
+                        list.add(new Tuple2<Tuple2<ItemSet, Double>, Rule>(r, rule)); // Support für gesamtes Set schon enthalten
                     }
                     return list.iterator();
                 })
-                .flatMapToPair(x -> {
+                .flatMapToPair(x -> { // Häufigkeit des Regel-Bodies zählen (für supportWithoutJ)
                     List<Tuple2<Tuple2<Rule, Double>, Integer>> list = new ArrayList<Tuple2<Tuple2<Rule, Double>, Integer>>();
                     for (ItemSet session : sessionsBroadcast.value()) {
                         if (session.containsAllElements(x._2.getBody())) {
@@ -146,14 +146,14 @@ public class APriori implements java.io.Serializable {
                     return list.iterator();
                 })
                 .reduceByKey((n1, n2) -> n1 + n2)
-                .mapToPair(t -> {
+                .mapToPair(t -> {  // Confidence berechnen
                     double supportWithoutJ = ((double) t._2 / amountOfSessions.value());
                     double conf = t._1._2 / supportWithoutJ;
                     t._1._1.setConfidence(conf);
                     return new Tuple2<Double, Rule>(conf, t._1._1);
                 })
-                .filter(f -> f._1 >= confidence.value())
-                .sortByKey(false);
+                .filter(f -> f._1 >= confidence.value()) // >= 0.8
+                .sortByKey(false); // absteigend
 
         // alle Regeln ausgeben:
         System.out.println("\nRules: ");
