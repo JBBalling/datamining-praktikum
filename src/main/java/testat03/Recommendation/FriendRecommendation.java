@@ -18,7 +18,6 @@ import scala.Tuple2;
 /**
  * sparkSubmit --class testat03.Recommendation.FriendRecommendation target/data-mining-praktikum-1.0-SNAPSHOT.jar
  */
-
 public class FriendRecommendation implements java.io.Serializable {
 	
 	private transient SparkConf conf;
@@ -92,7 +91,7 @@ public class FriendRecommendation implements java.io.Serializable {
                             str.append(",");
                         }
                         begin = false;
-                        str.append(tuple); // ._1
+                        str.append(tuple._1);
                     }
                     return new Tuple2<Integer, String>(m._1, str.toString());
                 })
@@ -146,13 +145,14 @@ public class FriendRecommendation implements java.io.Serializable {
 
 }
 
-// Comparator um Tuple nach .2 zu sortieren
+// Comparator um Tuple zu sortieren
 class CustomComparator implements Comparator<Tuple2<Integer, Integer>> {
     @Override
     public int compare(Tuple2<Integer, Integer> t1, Tuple2<Integer, Integer> t2) {
-    	if (t1._2 == t2._2) {
-			return t2._1.compareTo(t1._1); // umgedreht, weil aufsteigend
+    	int compareVal = t2._2.compareTo(t1._2); // Anzahl (absteigend)
+    	if (compareVal == 0) { // IDs (aufsteigend)
+			compareVal = t2._1.compareTo(t1._1) * (-1); // umgedreht, weil aufsteigend
 		}
-        return t2._2.compareTo(t1._2);
+        return compareVal;
     }
 }
