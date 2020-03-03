@@ -1,18 +1,27 @@
 package testat03.Streams;
 
 import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.StorageLevels;
+import org.apache.spark.api.java.function.Function2;
+import org.apache.spark.api.java.function.Function3;
 import org.apache.spark.streaming.Durations;
+import org.apache.spark.streaming.State;
+import org.apache.spark.streaming.StateSpec;
 import org.apache.spark.streaming.api.java.JavaDStream;
+import org.apache.spark.streaming.api.java.JavaMapWithStateDStream;
 import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaReceiverInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import scala.Tuple2;
 
-import java.util.Arrays;
+import org.apache.spark.api.java.Optional;
+
+import java.util.List;
 
 /**
- * sparkSubmit --class testat03.Streams.Streams target/data-mining-praktikum-1.0-SNAPSHOT.jar
+ * sparkSubmit --class testat03.Streams.Streams target/data-mining-praktikum-1.0-SNAPSHOT.jar [1/2/3]
  */
 public class Streams {
 
@@ -25,7 +34,8 @@ public class Streams {
         Streams streams = new Streams();
         streams.conf = new SparkConf().set("spark.executor.memory", "8G");
         streams.jssc = new JavaStreamingContext(streams.conf, Durations.seconds(10));
-        streams.main(1);
+        streams.jssc.checkpoint("checkpoints");
+        streams.main(Integer.parseInt(args[0]));
     }
 
     void main(int variant) {
@@ -70,8 +80,27 @@ public class Streams {
     }
 
     void thirdVariant(JavaReceiverInputDStream<String> lines) {
+
         double c = 0.1;
         double s = 1.0;
+
+        JavaPairDStream<String, Double> words = lines.mapToPair(m -> new Tuple2<String, Double>(m, 1.0));
+
+        Function2<List<Double>, Optional<Double>, Optional<Double>> updateFunction =
+                (values, state) -> {
+                    Double SX = values.size() + ((1 - c) * state.orElse(0.0));
+                    if (SX < s) {
+                        return Optional.empty();
+                    }
+                    return Optional.of(SX);
+                };
+
+        JavaPairDStream<Double, String> runningCounts = words.updateStateByKey(updateFunction)
+                .mapToPair(m -> new Tuple2<Double, String>(m._2, m._1))
+                .transformToPair(rdd -> rdd.sortByKey(false));
+
+        runningCounts.print(topResults);
+        // runningCounts.count().print();
 
     }
 
