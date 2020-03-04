@@ -31,3 +31,4 @@ target/
 # Projekt
 output/
 daten/
+checkpoints/
