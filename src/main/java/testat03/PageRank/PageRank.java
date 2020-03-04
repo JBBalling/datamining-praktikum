@@ -87,8 +87,6 @@ public class PageRank implements java.io.Serializable {
 
         // PageRank berechnen (iterativ):
 
-        int loop = 0;
-
         // bis die Änderung kleiner als Epsilon ist:
         while (subtractVectorsAndSum(rOld, rNew) >= epsilon) {
 
@@ -130,9 +128,6 @@ public class PageRank implements java.io.Serializable {
             */
 
         }
-
-        // Anzahl Iterationen:
-        System.out.println(loop + " Loops");
 
         // sortieren:
         JavaPairRDD<Double, Integer> ranking = rNew.toCoordinateMatrix().entries().toJavaRDD()
