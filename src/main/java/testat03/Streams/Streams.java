@@ -40,7 +40,6 @@ public class Streams {
 
     void main(int variant) {
         JavaReceiverInputDStream<String> lines = jssc.socketTextStream("localhost", 9999);
-
         switch (variant) {
             case 1:
                 firstVariant(lines);
@@ -54,7 +53,6 @@ public class Streams {
             default:
                 return;
         }
-
         jssc.start();
         try {
             jssc.awaitTermination();
@@ -63,6 +61,7 @@ public class Streams {
         }
     }
 
+    // erste Variante (alle 10s absolute Häufigkeiten aller Wörter bestimmen):
     void firstVariant(JavaReceiverInputDStream<String> lines) {
         JavaPairDStream<Integer, String> wordsWithAmount = lines.mapToPair(m -> new Tuple2<String, Integer>(m, 1))
                 .reduceByKey((n1, n2) -> n1 + n2)
@@ -71,6 +70,7 @@ public class Streams {
         wordsWithAmount.print(topResults);
     }
 
+    // zweite Variante (absolute Häufigkeit aller Wörter der letzten 60s, aber Berechnung alle 10s):
     void secondVariant(JavaReceiverInputDStream<String> lines) {
         JavaPairDStream<Integer, String> wordsWithAmount = lines.mapToPair(m -> new Tuple2<String, Integer>(m, 1))
                 .reduceByKeyAndWindow((n1, n2) -> n1 + n2, Durations.seconds(60), Durations.seconds(10))
@@ -79,22 +79,23 @@ public class Streams {
         wordsWithAmount.print(topResults);
     }
 
+    // dritte Variante (Exponentially Decaying Window):
     void thirdVariant(JavaReceiverInputDStream<String> lines) {
         double c = 0.1;
         double s = 1.0;
         JavaPairDStream<String, Double> words = lines.mapToPair(m -> new Tuple2<String, Double>(m, 1.0));
         Function2<List<Double>, Optional<Double>, Optional<Double>> updateFunction =
-                (values, state) -> {
+                (values, state) -> { // (neueWerte, alterZustand)
                     Double SX = values.size() + ((1 - c) * state.orElse(0.0));
                     if (SX < s) {
                         return Optional.empty();
                     }
                     return Optional.of(SX);
                 };
-        JavaPairDStream<Double, String> runningCounts = words.updateStateByKey(updateFunction)
+        JavaPairDStream<Double, String> counts = words.updateStateByKey(updateFunction)
                 .mapToPair(m -> new Tuple2<Double, String>(m._2, m._1))
                 .transformToPair(rdd -> rdd.sortByKey(false));
-        runningCounts.print(topResults);
+        counts.print(topResults);
         // runningCounts.count().print();
     }
 

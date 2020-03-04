@@ -25,7 +25,7 @@ public class FriendRecommendation implements java.io.Serializable {
 
     private static int friendNumber = 10;
     private String path = "daten/soc-LiveJournal1Adj.txt";
-    private String output = "output/testat03/FriendRecommendation";
+    private String output = "output/testat03/FriendRecommendation"; // vorher löschen!
     
 	public static void main(String[] args) {
 		FriendRecommendation recSystem = new FriendRecommendation();
@@ -38,6 +38,7 @@ public class FriendRecommendation implements java.io.Serializable {
 		JavaRDD<String> lines = jsc.textFile(path);
 		JavaRDD<User> users = lines.map(f -> new User(f));
 
+		// Nutzer ohne Freunde:
 		JavaPairRDD<Integer, List<Tuple2<Integer, Integer>>> usersWithoutFriends = users.filter(f -> f.getFriends().size() == 0)
                 .mapToPair(m -> new Tuple2<Integer, List<Tuple2<Integer, Integer>>>(m.getUserID(), new ArrayList<Tuple2<Integer, Integer>>()));
 
@@ -47,8 +48,9 @@ public class FriendRecommendation implements java.io.Serializable {
 		});
 		friendEdges.cache();
 
+		// Anzahl gemeinsamer Freunde ((user1, user2), amount):
 		JavaPairRDD<Tuple2<Integer, Integer>, Integer> sharedFriends = friendEdges.groupByKey()
-				.filter(f -> {
+				.filter(f -> { // Nutzer rausfiltern, die schon befreundet sind
 				    Iterator<Integer> iterator = f._2.iterator();
 				    while (iterator.hasNext()) {
 				        if (iterator.next() == 0) {
@@ -57,7 +59,7 @@ public class FriendRecommendation implements java.io.Serializable {
                     }
 					return true;
 				})
-                .mapToPair(m -> {
+                .mapToPair(m -> { // Anzahl der gemeinsamen Freunde bestimmen
                     int sum = 0;
                     Iterator<Integer> iterator = m._2.iterator();
                     while (iterator.hasNext()) {
@@ -66,20 +68,22 @@ public class FriendRecommendation implements java.io.Serializable {
                     return new Tuple2<Tuple2<Integer, Integer>, Integer>(m._1, sum);
                 });
 
+		// Bestimmung der top 10 besten Empfehlungen:
         JavaPairRDD<Integer, List<Tuple2<Integer, Integer>>> usersWithRecommendedUsers = sharedFriends.flatMapToPair(f -> {
             List<Tuple2<Integer, Tuple2<Integer, Integer>>> list = new ArrayList<>();
             list.add(new Tuple2<Integer, Tuple2<Integer, Integer>>(f._1._1, new Tuple2<Integer, Integer>(f._1._2, f._2)));
             list.add(new Tuple2<Integer, Tuple2<Integer, Integer>>(f._1._2, new Tuple2<Integer, Integer>(f._1._1, f._2)));
-            return list.iterator();
+            return list.iterator(); // beide Richtungen
         })
                 .groupByKey()
                 .mapToPair(p -> {
                     List<Tuple2<Integer, Integer>> list = Lists.newArrayList(p._2);
                     Collections.sort(list, new CustomComparator());
-                    list = list.subList(0, Math.min(list.size(), amount));
+                    list = list.subList(0, Math.min(list.size(), amount)); // evtl. gibt es weniger als 10 Empfehlungen
                     return new Tuple2<Integer, List<Tuple2<Integer, Integer>>>(p._1, list);
                 });
 
+        // Ausgabe von allen Nutzern mit den empfohlenen Freunden:
         JavaPairRDD<Integer, String> allUsers = usersWithRecommendedUsers.union(usersWithoutFriends)
                 .mapToPair(m -> {
                     StringBuilder str = new StringBuilder();
@@ -101,15 +105,12 @@ public class FriendRecommendation implements java.io.Serializable {
 
 	}
 
-	/*
-	 * Maps an friendship to two individuals (id_1, id_2, flag(friends?) -> friends = {0;1}, 0 = already friends together, 1 = have a friend together
-	 * Output will be a list of Tuples ((userId, userId), friends?)
-	 */
+	// ((user1, user2), friends?) Erstellt eine Liste von Tupeln mit je zwei UserIDs, die aussagen ob die beiden bereits befreundet sind (0) oder einen gemeinsamen Freund haben (1):
 	public List<Tuple2<Tuple2<Integer, Integer>, Integer>> friendShipConnection(User user) {
 		List<Tuple2<Tuple2<Integer, Integer>, Integer>> connections = new ArrayList<>();
 		Tuple2<Integer, Integer> key;
 
-		// direkte Freundschaften
+		// direkte Freundschaften:
 		for (int friend : user.getFriends()) {
 			key = new Tuple2<Integer, Integer>(user.getUserID(), friend);
 			if (user.getUserID() > friend) {
@@ -118,7 +119,7 @@ public class FriendRecommendation implements java.io.Serializable {
 			connections.add(new Tuple2<Tuple2<Integer, Integer>, Integer>(key, 0));
 		}
 		
-		// Freunde mit gemeinsamen Freunden
+		// Freunde mit gemeinsamen Freunden:
 		List<Tuple2<Integer, Integer>> combinations = getPossibleCombinations(user.getFriends());
 		for (Tuple2<Integer, Integer> friendPair : combinations) {
 			connections.add(new Tuple2<>(friendPair, 1));
@@ -127,7 +128,7 @@ public class FriendRecommendation implements java.io.Serializable {
 		return connections;
 	}
 
-	// alle möglichen Kombinationen
+	// alle möglichen Kombinationen:
 	List<Tuple2<Integer, Integer>> getPossibleCombinations(Set<Integer> set) {
 		List<Integer> list = new ArrayList<>(set);
         List<Tuple2<Integer, Integer>> combinations = new ArrayList<>();
@@ -143,16 +144,4 @@ public class FriendRecommendation implements java.io.Serializable {
         return combinations;
     }
 
-}
-
-// Comparator um Tuple zu sortieren
-class CustomComparator implements Comparator<Tuple2<Integer, Integer>> {
-    @Override
-    public int compare(Tuple2<Integer, Integer> t1, Tuple2<Integer, Integer> t2) {
-    	int compareVal = t2._2.compareTo(t1._2); // Anzahl (absteigend)
-    	if (compareVal == 0) { // IDs (aufsteigend)
-			compareVal = t2._1.compareTo(t1._1) * (-1); // umgedreht, weil aufsteigend
-		}
-        return compareVal;
-    }
 }

@@ -51,87 +51,83 @@ public class PageRank implements java.io.Serializable {
 
         // stochastische Adjazenzmatrix:
 
-        // (j, i)
+        // (i, j)
         JavaPairRDD<Long, Long> entriesTemp = lines.mapToPair(m -> {
             String[] array = m.split("\t");
-            return new Tuple2<Long, Long>(Long.parseLong(array[1]), Long.parseLong(array[0])); // -1, da es bei 0 beginnen soll
+            return new Tuple2<Long, Long>(Long.parseLong(array[0]), Long.parseLong(array[1]));
         }).distinct();
 
-        // (j, Anzahl)
+        // (i, Anzahl)
         JavaPairRDD<Long, Integer> columnSums = entriesTemp.mapToPair(m -> new Tuple2<Long, Integer>(m._1, 1))
                 .reduceByKey((n1, n2) -> n1 + n2);
 
-        // (i, j, d)
+        // (j, i, d)
         JavaRDD<MatrixEntry> entries = entriesTemp.join(columnSums)
                 .map(m -> new MatrixEntry(m._2._1, m._1, (1.0 / (double) m._2._2)));
 
-        // entries.foreach(s -> System.out.println(s));
-
         BlockMatrix adjMatrix = new CoordinateMatrix(entries.rdd()).toBlockMatrix();
 
-        // Vektor rOld
+        // initiale Werte:
+
+        // initialer Vektor rOld:
         List<MatrixEntry> rOldEntries = new ArrayList<MatrixEntry>();
         for (int i = 1; i <= nodes; i++) {
-            rOldEntries.add(new MatrixEntry(i, 0, 0.0)); // 0.0
+            rOldEntries.add(new MatrixEntry(i, 0, 0.0));
         }
         JavaRDD<MatrixEntry> rOldEntriesRDD = jsc.parallelize(rOldEntries);
         BlockMatrix rOld = new CoordinateMatrix(rOldEntriesRDD.rdd()).toBlockMatrix();
 
-        // Vektor rNew
+        // initialer Vektor rNew:
         List<MatrixEntry> rNewEntries = new ArrayList<MatrixEntry>();
         for (int i = 1; i <= nodes; i++) {
-            rNewEntries.add(new MatrixEntry(i, 0, 1.0)); // 1.0
+            rNewEntries.add(new MatrixEntry(i, 0, 1.0));
         }
         JavaRDD<MatrixEntry> rNewEntriesRDD = jsc.parallelize(rNewEntries);
         BlockMatrix rNew = new CoordinateMatrix(rNewEntriesRDD.rdd()).toBlockMatrix();
 
+        // PageRank berechnen (iterativ):
+
         int loop = 0;
 
+        // bis die Änderung kleiner als Epsilon ist:
         while (subtractVectorsAndSum(rOld, rNew) >= epsilon) {
 
+            // rOld <- rNew:
             rOld = rNew;
 
+            // (beta * m * r):
+            BlockMatrix matrixTemp = new CoordinateMatrix(adjMatrix.toCoordinateMatrix().entries().toJavaRDD()
+                    .map(m -> new MatrixEntry(m.i(), m.j(), m.value() * betaBroadcast.value())).rdd()).toBlockMatrix();
+            rNew = matrixTemp.multiply(rOld);
 
             /*
             JavaPairRDD<Integer, Tuple2<Integer, Double>> matrixForJoin = adjMatrix.toCoordinateMatrix().entries().toJavaRDD()
                     .mapToPair(m -> new Tuple2<Integer, Tuple2<Integer, Double>>((int)m.j(), new Tuple2<Integer, Double>((int)m.i(), m.value())));
-
             JavaPairRDD<Integer, Double> vectorForJoin = rOld.toCoordinateMatrix().entries().toJavaRDD()
                     .mapToPair(m -> new Tuple2<Integer, Double>((int)m.i(), m.value()));
-
             JavaRDD<MatrixEntry> multipliedMatrices = matrixForJoin.join(vectorForJoin)
                     .mapToPair(m -> new Tuple2<Integer,Double>(m._2._1._1, betaBroadcast.value() * m._2._1._2 * m._2._2))
                     .reduceByKey((n1, n2) -> n1 + n2)
                     .map(x -> new MatrixEntry(x._1, 0, x._2));
+            rNew = new CoordinateMatrix(multipliedMatrices.rdd()).toBlockMatrix();
+            */
 
-            rNew = new CoordinateMatrix(multipliedMatrices.rdd()).toBlockMatrix();*/
-
-
-
-            BlockMatrix matrixTemp = new CoordinateMatrix(adjMatrix.toCoordinateMatrix().entries().toJavaRDD()
-                    .map(m -> new MatrixEntry(m.i(), m.j(), m.value() * betaBroadcast.value())).rdd()).toBlockMatrix();
-
-            rNew = matrixTemp.multiply(rOld);
-
-
+            // S = Summe aller Werte von rNew:
             double S = getMatrixSum(rNew, false);
 
-            rNew = new CoordinateMatrix(rNew.toCoordinateMatrix().entries().toJavaRDD()
-                    .map(m -> new MatrixEntry(m.i(), m.j(), m.value() + (1.0 - (S / (double) nodes)))).rdd()).toBlockMatrix();
-
-            /*
+            // für alle Werte von rNew += (1 - (S / nodes)):
             List<MatrixEntry> rAddTemp = new ArrayList<MatrixEntry>();
             for (int i = 1; i <= nodes; i++) {
                 rAddTemp.add(new MatrixEntry(i, 0, (1.0 - (S / (double) nodes))));
             }
             JavaRDD<MatrixEntry> rAddTempRDD = jsc.parallelize(rAddTemp);
             BlockMatrix rAdd = new CoordinateMatrix(rAddTempRDD.rdd()).toBlockMatrix();
+            rNew = rNew.add(rAdd);
 
-            rNew = rNew.add(rAdd);*/
-
-            if (++loop == 50) {
-                break;
-            }
+            /*
+            rNew = new CoordinateMatrix(rNew.toCoordinateMatrix().entries().toJavaRDD()
+                    .map(m -> new MatrixEntry(m.i(), m.j(), m.value() + (1.0 - (S / (double) nodes)))).rdd()).toBlockMatrix();
+            */
 
         }
 
@@ -149,10 +145,12 @@ public class PageRank implements java.io.Serializable {
 
     }
 
+    // Vektoren voneinander subtrahieren (mit Betrag):
     double subtractVectorsAndSum(BlockMatrix rOld, BlockMatrix rNew) {
         return getMatrixSum(rNew.subtract(rOld), true);
     }
 
+    // alle Werte einer Blockmatrix summieren:
     double getMatrixSum(BlockMatrix matrix, boolean abs) {
         return matrix.toCoordinateMatrix().entries().toJavaRDD()
                 .mapToPair(m -> new Tuple2<Integer, Double>(1, abs ? Math.abs(m.value()) : m.value()))
