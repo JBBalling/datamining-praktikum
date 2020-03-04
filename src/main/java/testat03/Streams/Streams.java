@@ -80,12 +80,9 @@ public class Streams {
     }
 
     void thirdVariant(JavaReceiverInputDStream<String> lines) {
-
         double c = 0.1;
         double s = 1.0;
-
         JavaPairDStream<String, Double> words = lines.mapToPair(m -> new Tuple2<String, Double>(m, 1.0));
-
         Function2<List<Double>, Optional<Double>, Optional<Double>> updateFunction =
                 (values, state) -> {
                     Double SX = values.size() + ((1 - c) * state.orElse(0.0));
@@ -94,14 +91,11 @@ public class Streams {
                     }
                     return Optional.of(SX);
                 };
-
         JavaPairDStream<Double, String> runningCounts = words.updateStateByKey(updateFunction)
                 .mapToPair(m -> new Tuple2<Double, String>(m._2, m._1))
                 .transformToPair(rdd -> rdd.sortByKey(false));
-
         runningCounts.print(topResults);
         // runningCounts.count().print();
-
     }
 
 }
