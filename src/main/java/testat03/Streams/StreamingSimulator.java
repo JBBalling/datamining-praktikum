@@ -15,7 +15,7 @@ public class StreamingSimulator {
 
     public static void main(String[] args) throws NumberFormatException {
 
-        String input = "/Users/jakobschwerter/Development/data-mining-praktikum/daten/words_stream.txt";
+        String input = "daten/words_stream.txt";
 
         try {
             ServerSocket server = new ServerSocket(9999);

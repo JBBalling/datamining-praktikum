@@ -44,9 +44,7 @@ public class PageRank implements java.io.Serializable {
     }
 
     void main() {
-
         Broadcast<Double> betaBroadcast = jsc.broadcast(beta);
-
         JavaRDD<String> lines = jsc.textFile(path);
 
         // stochastische Adjazenzmatrix:
@@ -114,7 +112,7 @@ public class PageRank implements java.io.Serializable {
             double S = getMatrixSum(rNew, false);
 
             // für alle Werte von rNew += (1 - (S / nodes)):
-            List<MatrixEntry> rAddTemp = new ArrayList<MatrixEntry>();
+            List<MatrixEntry> rAddTemp = new ArrayList<>();
             for (int i = 1; i <= nodes; i++) {
                 rAddTemp.add(new MatrixEntry(i, 0, (1.0 - (S / (double) nodes))));
             }

@@ -13,6 +13,7 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 
+import org.apache.spark.broadcast.Broadcast;
 import scala.Tuple2;
 
 /**
@@ -35,12 +36,14 @@ public class FriendRecommendation implements java.io.Serializable {
 	}
 	
 	public void recommend(int amount) {
+		Broadcast<Integer> friendAmount = jsc.broadcast(amount);
 		JavaRDD<String> lines = jsc.textFile(path);
 		JavaRDD<User> users = lines.map(f -> new User(f));
 
 		// Nutzer ohne Freunde:
 		JavaPairRDD<Integer, List<Tuple2<Integer, Integer>>> usersWithoutFriends = users.filter(f -> f.getFriends().size() == 0)
                 .mapToPair(m -> new Tuple2<Integer, List<Tuple2<Integer, Integer>>>(m.getUserID(), new ArrayList<Tuple2<Integer, Integer>>()));
+		usersWithoutFriends.cache();
 
 		JavaPairRDD<Tuple2<Integer, Integer>, Integer> friendEdges = users.flatMapToPair(f -> {
 			List<Tuple2<Tuple2<Integer, Integer>, Integer>> connectedFriends = friendShipConnection(f);
@@ -79,7 +82,7 @@ public class FriendRecommendation implements java.io.Serializable {
                 .mapToPair(p -> {
                     List<Tuple2<Integer, Integer>> list = Lists.newArrayList(p._2);
                     Collections.sort(list, new CustomComparator());
-                    list = list.subList(0, Math.min(list.size(), amount)); // evtl. gibt es weniger als 10 Empfehlungen
+                    list = list.subList(0, Math.min(list.size(), friendAmount.value())); // evtl. gibt es weniger als 10 Empfehlungen
                     return new Tuple2<Integer, List<Tuple2<Integer, Integer>>>(p._1, list);
                 });
 

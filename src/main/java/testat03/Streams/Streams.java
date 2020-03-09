@@ -57,7 +57,7 @@ public class Streams {
         try {
             jssc.awaitTermination();
         } catch(Exception e) {
-
+            e.printStackTrace();
         }
     }
 
@@ -73,7 +73,7 @@ public class Streams {
     // zweite Variante (absolute Häufigkeit aller Wörter der letzten 60s, aber Berechnung alle 10s):
     void secondVariant(JavaReceiverInputDStream<String> lines) {
         JavaPairDStream<Integer, String> wordsWithAmount = lines.mapToPair(m -> new Tuple2<String, Integer>(m, 1))
-                .reduceByKeyAndWindow((n1, n2) -> n1 + n2, Durations.seconds(60), Durations.seconds(10))
+                .reduceByKeyAndWindow((n1, n2) -> n1 + n2, Durations.seconds(60), Durations.seconds(10)) // letzte x Sekunden, alle y Sekunden
                 .mapToPair(x -> new Tuple2<Integer, String>(x._2, x._1))
                 .transformToPair(rdd -> rdd.sortByKey(false));
         wordsWithAmount.print(topResults);
@@ -83,15 +83,15 @@ public class Streams {
     void thirdVariant(JavaReceiverInputDStream<String> lines) {
         double c = 0.1;
         double s = 1.0;
-        JavaPairDStream<String, Double> words = lines.mapToPair(m -> new Tuple2<String, Double>(m, 1.0));
         Function2<List<Double>, Optional<Double>, Optional<Double>> updateFunction =
-                (values, state) -> { // (neueWerte, alterZustand)
-                    Double SX = values.size() + ((1 - c) * state.orElse(0.0));
+                (values, state) -> { // (neue Werte, alter Zustand)
+                    Double SX = values.size() + ((1 - c) * state.orElse(0.0)); // nur Einsen: Size = Summe
                     if (SX < s) {
-                        return Optional.empty();
+                        return Optional.empty(); // Zähler entfernen
                     }
                     return Optional.of(SX);
                 };
+        JavaPairDStream<String, Double> words = lines.mapToPair(m -> new Tuple2<String, Double>(m, 1.0)); // Wörter-Ströme
         JavaPairDStream<Double, String> counts = words.updateStateByKey(updateFunction)
                 .mapToPair(m -> new Tuple2<Double, String>(m._2, m._1))
                 .transformToPair(rdd -> rdd.sortByKey(false));
