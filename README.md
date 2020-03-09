@@ -16,7 +16,7 @@ Die Testate sind spätestens bis zu folgenden Fristen abzulegen:
 
 - Testat 1: 29. November 2019 (Termin: 28.11.19 11:00)
 - Testat 2: 31. Januar 2020 (Termin: 21.01.20 10:00)
-- Testat 3: 31. März 2020 (Termin: 11.03.20 14:00) (Die Woche danach ist er nicht da. Im Februar kann der Termin noch verschoben werden.)
+- Testat 3: 31. März 2020 (Termin: 11.03.20 14:00)
 
 Der Termin für das dritte Testat ist bis spätestens Ende Februar zu vereinbaren!
 
