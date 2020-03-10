@@ -131,8 +131,8 @@ public class PageRank implements java.io.Serializable {
         JavaPairRDD<Double, Integer> ranking = rNew.toCoordinateMatrix().entries().toJavaRDD()
                 .mapToPair(m -> new Tuple2<>(m.value(), (int) m.i())).sortByKey(false);
 
-        // Ranking ausgeben:
-        ranking.take(nodeWithHighestPageRank).forEach(s -> { // .take(nodeWithHighestPageRank)
+        // Ranking ausgeben (gerundet):
+        ranking.take(nodeWithHighestPageRank).forEach(s -> {
             System.out.println("(" + s._2 + ", " + Math.round(100.0 * s._1) / 100.0 + ")");
         });
 
