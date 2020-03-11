@@ -85,7 +85,7 @@ public class Streams {
         double s = 1.0;
         Function2<List<Double>, Optional<Double>, Optional<Double>> updateFunction =
                 (values, state) -> { // (neue Werte, alter Zustand)
-                    Double SX = values.size() + ((1 - c) * state.orElse(0.0)); // nur Einsen: Size = Summe
+                    Double SX = values.size() + ((1 - c) * state.orElse(0.0)); // neue Werte (nur Einsen: Size = Summe) + (1 - c) * alter Zustand
                     if (SX < s) {
                         return Optional.empty(); // Zähler entfernen
                     }
