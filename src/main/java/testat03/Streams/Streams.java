@@ -23,10 +23,10 @@ import java.util.List;
 /**
  * sparkSubmit --class testat03.Streams.Streams target/data-mining-praktikum-1.0-SNAPSHOT.jar [1/2/3]
  */
-public class Streams {
+public class Streams implements java.io.Serializable {
 
-    private transient SparkConf conf;
-    private transient JavaStreamingContext jssc;
+    private SparkConf conf;
+    private JavaStreamingContext jssc;
 
     private int topResults = 10;
 

@@ -33,9 +33,10 @@ public class FriendRecommendation implements java.io.Serializable {
 		recSystem.conf = new SparkConf().set("spark.executor.memory", "8G");
 		recSystem.jsc = new JavaSparkContext(recSystem.conf);
 		recSystem.recommend(friendNumber);
+		recSystem.jsc.stop();
 	}
 	
-	public void recommend(int amount) {
+	private void recommend(int amount) {
 		Broadcast<Integer> friendAmount = jsc.broadcast(amount);
 		JavaRDD<String> lines = jsc.textFile(path);
 		JavaRDD<User> users = lines.map(f -> new User(f));
@@ -109,7 +110,7 @@ public class FriendRecommendation implements java.io.Serializable {
 	}
 
 	// ((user1, user2), friends?) Erstellt eine Liste von Tupeln mit je zwei UserIDs, die aussagen ob die beiden bereits befreundet sind (0) oder einen gemeinsamen Freund haben (1):
-	public List<Tuple2<Tuple2<Integer, Integer>, Integer>> friendShipConnection(User user) {
+	private List<Tuple2<Tuple2<Integer, Integer>, Integer>> friendShipConnection(User user) {
 		List<Tuple2<Tuple2<Integer, Integer>, Integer>> connections = new ArrayList<>();
 		Tuple2<Integer, Integer> key;
 
@@ -132,7 +133,7 @@ public class FriendRecommendation implements java.io.Serializable {
 	}
 
 	// alle möglichen Kombinationen:
-	List<Tuple2<Integer, Integer>> getPossibleCombinations(Set<Integer> set) {
+	private List<Tuple2<Integer, Integer>> getPossibleCombinations(Set<Integer> set) {
 		List<Integer> list = new ArrayList<>(set);
         List<Tuple2<Integer, Integer>> combinations = new ArrayList<>();
         for (int i = 0; i < list.size() - 1; i++) {

@@ -25,8 +25,8 @@ import java.util.List;
  */
 public class PageRank implements java.io.Serializable {
 
-    private transient SparkConf conf;
-    private transient JavaSparkContext jsc;
+    private SparkConf conf;
+    private JavaSparkContext jsc;
 
     private String path = "daten/graph.txt";
 
@@ -41,6 +41,7 @@ public class PageRank implements java.io.Serializable {
         pageRank.conf = new SparkConf().set("spark.executor.memory", "8G");
         pageRank.jsc = new JavaSparkContext(pageRank.conf);
         pageRank.main();
+        pageRank.jsc.stop();
     }
 
     void main() {
