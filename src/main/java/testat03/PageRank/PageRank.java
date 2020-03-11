@@ -55,12 +55,12 @@ public class PageRank implements java.io.Serializable {
             return new Tuple2<Long, Long>(Long.parseLong(array[0]), Long.parseLong(array[1]));
         }).distinct();
 
-        // (i, Anzahl)
+        // (i, Anzahl) (ausgehende Kanten von i)
         JavaPairRDD<Long, Integer> columnSums = entriesTemp.mapToPair(m -> new Tuple2<Long, Integer>(m._1, 1))
                 .reduceByKey((n1, n2) -> n1 + n2);
 
         // (j, i, d)
-        JavaRDD<MatrixEntry> entries = entriesTemp.join(columnSums)
+        JavaRDD<MatrixEntry> entries = entriesTemp.join(columnSums) // (i, (j, Anzahl))
                 .map(m -> new MatrixEntry(m._2._1, m._1, (1.0 / (double) m._2._2)));
 
         BlockMatrix adjMatrix = new CoordinateMatrix(entries.rdd()).toBlockMatrix();
